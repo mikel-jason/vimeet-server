@@ -1,0 +1,7 @@
+[package]
+name = "vimeet"
+version = "0.1.0"
+authors = ["Mikel Muennekhoff <inf18207@lehre.dhbw-stuttgart.de>", "Julian Groshaupt <mail@julian-groshaupt.de>"]
+edition = "2018"
+
+[dependencies]
