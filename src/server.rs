@@ -4,7 +4,7 @@
 
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
-use serde::{Serialize};
+use serde::Serialize;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 
