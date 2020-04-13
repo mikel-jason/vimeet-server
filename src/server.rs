@@ -126,9 +126,10 @@ impl Default for WebSocketServer {
     }
 }
 
+
 impl WebSocketServer {
     /// Send message to all users in the room
-    fn send_message(&self, room: &str, message: &str, skip_id: usize) {
+    fn send_message_skip_user(&self, room: &str, message: &str, skip_id: usize) {
         if let Some(room) = self.rooms.get(room) {
             let sessions = &room.connected;
             for id in sessions {
@@ -136,6 +137,27 @@ impl WebSocketServer {
                     if let Some(addr) = self.sessions.get(id) {
                         let _ = addr.do_send(Message(message.to_owned()));
                     }
+                }
+            }
+        } else {
+            println!("No room '{}' found", room);
+        }
+    }
+
+    fn send_message_all(&self, room: &str, message: &str) {
+        self.send_message_skip_user(room, message, 0);
+    }
+
+    #[allow(dead_code)]
+    fn send_message_user(&self, room: &str, message: &str, user_id: usize) {
+        if let Some(room) = self.rooms.get(room) {
+            let sessions = &room.connected;
+            for id in sessions {
+                if id == &user_id {
+                    if let Some(addr) = self.sessions.get(id) {
+                        let _ = addr.do_send(Message(message.to_owned()));
+                    }
+                    break;
                 }
             }
         } else {
@@ -161,10 +183,16 @@ impl Handler<Connect> for WebSocketServer {
         println!("Someone joined");
 
         // notify all users in same room
-        self.send_message(&"Main".to_owned(), "Someone joined", 0);
+        self.send_message_all(&"Main".to_owned(), "Someone joined");
 
         // register session with random id
-        let id = self.rng.gen::<usize>();
+        let mut id;
+        loop {
+            id = self.rng.gen::<usize>();
+            if id > 0 {
+                break;
+            }
+        }
         self.sessions.insert(id, msg.addr);
 
         // send id back
@@ -192,7 +220,7 @@ impl Handler<Disconnect> for WebSocketServer {
         }
         // send message to other users
         for room in rooms_leaving {
-            self.send_message(&room, "Someone disconnected", 0);
+            self.send_message_all(&room, "Someone disconnected");
         }
     }
 }
@@ -202,7 +230,7 @@ impl Handler<ClientMessage> for WebSocketServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        self.send_message(&msg.room, msg.msg.as_str(), msg.id);
+        self.send_message_skip_user(&msg.room, msg.msg.as_str(), msg.id);
     }
 }
 
@@ -243,7 +271,7 @@ impl Handler<Join> for WebSocketServer {
         }
         // send message to other users
         for room in rooms_leaving {
-            self.send_message(&room, "Someone disconnected", 0);
+            self.send_message_all(&room, "Someone disconnected");
         }
 
         self.rooms
@@ -259,7 +287,7 @@ impl Handler<Join> for WebSocketServer {
         })
         .to_string();
 
-        self.send_message(&room_name, &msg, user_id);
+        self.send_message_skip_user(&room_name, &msg, user_id);
     }
 }
 
@@ -292,7 +320,7 @@ impl Handler<Raise> for WebSocketServer {
             "owner_name": msg.owner_name,
             "object": &msg.object,
         });
-        self.send_message(msg.room_name.as_str(), &txt.to_string(), 100000);
+        self.send_message_all(msg.room_name.as_str(), &txt.to_string());
 
         let room = self.rooms.entry(msg.room_name).or_insert(Room::default());
         room.raised.push(Raised {
@@ -335,6 +363,6 @@ impl Handler<Lower> for WebSocketServer {
             "owner_name": msg.owner_name,
             "object": msg.object,
         });
-        self.send_message(&msg.room_name, &txt.to_string(), 100000);
+        self.send_message_all(&msg.room_name, &txt.to_string());
     }
 }
