@@ -8,6 +8,9 @@ use actix_web_actors::ws;
 
 use serde_json::{Result as JsonResult, Value};
 
+use dotenv::dotenv;
+use std::env;
+
 mod server;
 
 /// How often heartbeat pings are sent
@@ -207,6 +210,14 @@ impl WsWebSocketSession {
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
+    dotenv().ok();
+
+    let port = env::var("PORT").unwrap_or(env::var("VIMEET_PORT").unwrap_or("8080".to_string()));
+    let mut bind_address = env::var("VIMEET_BIND_ADDRESS").unwrap_or("127.0.0.1".to_string());
+
+    bind_address.push_str(":");
+    bind_address.push_str(port.as_str());
+    println!("Binding server to {}", bind_address);
 
     // Start web socket server actor
     let server = server::WebSocketServer::default().start();
@@ -226,7 +237,7 @@ async fn main() -> std::io::Result<()> {
             // static resources
             .service(fs::Files::new("/static/", "static/"))
     })
-    .bind("127.0.0.1:8080")?
+    .bind(bind_address.as_str())?
     .run()
     .await
 }
