@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<html>
+  <head>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+    <script language="javascript" type="text/javascript">
+      var conn = null;
+      $(function () {
+        function log(msg) {
+          var control = $("#log");
+          control.html(control.html() + msg + "<br/>");
+          control.scrollTop(control.scrollTop() + 1000);
+        }
+        function connect() {
+          disconnect();
+          var wsUri =
+            ((window.location.protocol == "https:" && "wss://") || "ws://") +
+            window.location.host +
+            "/ws/";
+          conn = new WebSocket(wsUri);
+          log("Connecting...");
+          conn.onopen = function () {
+            let msg = {
+              type: 'join',
+              room: $('#room').val(),
+              name: $('#name').val(),
+            };
+            conn.send(JSON.stringify(msg));
+            // conn.send(`/join ${$('#room').val()}`)
+            log("Connected.");
+            update_ui();
+          };
+          conn.onmessage = function (e) {
+            console.log(e.data);
+            log("Received: " + e.data);
+            console.log(JSON.parse(e.data));
+          };
+          conn.onclose = function () {
+            log("Disconnected.");
+            conn = null;
+            update_ui();
+          };
+        }
+        function disconnect() {
+          if (conn != null) {
+            log("Disconnecting...");
+            conn.close();
+            conn = null;
+            update_ui();
+          }
+        }
+        function update_ui() {
+          var msg = "";
+          if (conn == null) {
+            $("#status").text("disconnected");
+            $("#connect").html("Connect");
+          } else {
+            $("#status").text("connected (" + conn.protocol + ")");
+            $("#connect").html("Disconnect");
+          }
+        }
+        $("#connect").click(function (e) {
+          e.preventDefault();
+          if (conn == null && $("#room").val().length > 0) {
+            connect();
+          } else {
+            disconnect();
+          }
+          update_ui();
+          return false;
+        });
+        $("#send").click(function () {
+          var text = $("#text").val();
+          log("Sending: " + text);
+          conn.send(text);
+          $("#text").val("").focus();
+          return false;
+        });
+        $("#text").keyup(function (e) {
+          if (e.keyCode === 13) {
+            $("#send").click();
+            return false;
+          }
+        });
+        $('#raiseBtn').click(() => {
+          let text = {
+            type: 'raise',
+            raiseobject: $('#raiseobject').val(),
+          };
+          console.log(text);
+          conn.send(JSON.stringify(text));
+        });
+        $('#lowerBtn').click(() => {
+          let text = {
+            type: 'lower',
+            lowerobject: $('#lowerobject').val(),
+          };
+          console.log(text);
+          conn.send(JSON.stringify(text));
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <h3>Test env!</h3>
+    <div>
+      <form>
+        <label for="name">Name:</label>
+        <input id="name" type="text" value="Test name" />
+        <label for="room">Room:</label>
+        <input id="room" type="text" value="Test room" />
+        
+        <button type="submit" id="connect">
+
+      </form>
+        Connect</button
+      ><br />Status:
+      <span id="status">disconnected</span>
+    </div>
+    <div
+      id="log"
+      style="
+        width: 80vw;
+        height: 15em;
+        overflow: auto;
+        border: 1px solid black;
+      "
+    ></div>
+    <form id="chatform" onsubmit="return false;">
+      <input id="text" type="text" />
+      <input id="send" type="button" value="Send" />
+    </form>
+    <form id="raiseform" onsubmit="return false;">
+      <input id="raiseobject" type="text" />
+      <input id="raiseBtn" type="button" value="Raise" />
+    </form>
+    <form id="lowerform" onsubmit="return false;">
+      <input id="lowerobject" type="text" />
+      <input id="lowerBtn" type="button" value="Lower" />
+    </form>
+  </body>
+</html>
