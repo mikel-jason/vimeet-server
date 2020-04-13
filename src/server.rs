@@ -6,7 +6,7 @@ use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 use serde::Serialize;
 use serde_json::json;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// web socket server sends this messages to session
 #[derive(Message)]
@@ -44,14 +44,14 @@ pub struct ClientMessage {
 #[derive(Clone)]
 pub struct Room {
     raised: Vec<Raised>,
-    connected: HashSet<usize>,
+    connected: HashMap<usize, String>,
 }
 
 impl Default for Room {
     fn default() -> Room {
         Room {
             raised: Vec::new(),
-            connected: HashSet::new(),
+            connected: HashMap::new(),
         }
     }
 }
@@ -126,13 +126,12 @@ impl Default for WebSocketServer {
     }
 }
 
-
 impl WebSocketServer {
     /// Send message to all users in the room
     fn send_message_skip_user(&self, room: &str, message: &str, skip_id: usize) {
         if let Some(room) = self.rooms.get(room) {
             let sessions = &room.connected;
-            for id in sessions {
+            for (id, _) in sessions {
                 if *id != skip_id {
                     if let Some(addr) = self.sessions.get(id) {
                         let _ = addr.do_send(Message(message.to_owned()));
@@ -148,11 +147,10 @@ impl WebSocketServer {
         self.send_message_skip_user(room, message, 0);
     }
 
-    #[allow(dead_code)]
     fn send_message_user(&self, room: &str, message: &str, user_id: usize) {
         if let Some(room) = self.rooms.get(room) {
             let sessions = &room.connected;
-            for id in sessions {
+            for (id, _) in sessions {
                 if id == &user_id {
                     if let Some(addr) = self.sessions.get(id) {
                         let _ = addr.do_send(Message(message.to_owned()));
@@ -213,7 +211,7 @@ impl Handler<Disconnect> for WebSocketServer {
         if self.sessions.remove(&msg.id).is_some() {
             // remove session from all rooms
             for (name, rooms) in &mut self.rooms {
-                if rooms.connected.remove(&msg.id) {
+                if rooms.connected.remove_entry(&msg.id).is_some() {
                     rooms_leaving.push(name.to_owned());
                 }
             }
@@ -265,7 +263,7 @@ impl Handler<Join> for WebSocketServer {
 
         // remove session from all rooms
         for (n, rooms) in &mut self.rooms {
-            if rooms.connected.remove(&user_id) {
+            if rooms.connected.remove_entry(&user_id).is_some() {
                 rooms_leaving.push(n.to_owned());
             }
         }
@@ -278,7 +276,7 @@ impl Handler<Join> for WebSocketServer {
             .entry(room_name.clone())
             .or_insert(Room::default())
             .connected
-            .insert(user_id);
+            .insert(user_id, user_name.clone());
 
         let msg = json!({
             "type": "joined",
@@ -287,7 +285,18 @@ impl Handler<Join> for WebSocketServer {
         })
         .to_string();
 
-        self.send_message_skip_user(&room_name, &msg, user_id);
+        self.send_message_skip_user(&room_name, msg.as_str(), user_id);
+
+        let room = self.rooms.get(&room_name).unwrap();
+
+        let msg = json!({
+            "type": "all",
+            "raised": room.raised,
+            "joined": room.connected,
+        })
+        .to_string();
+
+        self.send_message_user(&room_name, msg.as_str(), user_id);
     }
 }
 
