@@ -3,7 +3,6 @@
 //! room through `WebSocketServer`.
 
 use actix::prelude::*;
-use rand::{self, rngs::ThreadRng, Rng};
 use serde::Serialize;
 use serde_json::json;
 use std::collections::HashMap;
@@ -12,15 +11,6 @@ use std::collections::HashMap;
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Message(pub String);
-
-/// Message for web socket server communications
-
-/// New web socket session is created
-#[derive(Message)]
-#[rtype(usize)]
-pub struct Connect {
-    pub addr: Recipient<Message>,
-}
 
 /// Session is disconnected
 #[derive(Message)]
@@ -88,17 +78,11 @@ pub struct Lower {
     pub room_name: String,
 }
 
-/// List of available rooms
-pub struct ListRooms;
-
-impl actix::Message for ListRooms {
-    type Result = Vec<String>;
-}
-
 /// Join room, if room does not exists create new one.
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Join {
+    pub addr: Recipient<Message>,
     /// Client id
     pub user_id: usize,
     pub user_name: String,
@@ -111,7 +95,6 @@ pub struct Join {
 pub struct WebSocketServer {
     sessions: HashMap<usize, Recipient<Message>>,
     rooms: HashMap<String, Room>,
-    rng: ThreadRng,
 }
 
 impl Default for WebSocketServer {
@@ -121,7 +104,6 @@ impl Default for WebSocketServer {
         WebSocketServer {
             sessions: HashMap::new(),
             rooms,
-            rng: rand::thread_rng(),
         }
     }
 }
@@ -171,54 +153,32 @@ impl Actor for WebSocketServer {
     type Context = Context<Self>;
 }
 
-/// Handler for Connect message.
-///
-/// Register new session and assign unique id to this session
-impl Handler<Connect> for WebSocketServer {
-    type Result = usize;
-
-    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        println!("Someone joined");
-
-        // notify all users in same room
-        self.send_message_all(&"Main".to_owned(), "Someone joined");
-
-        // register session with random id
-        let mut id;
-        loop {
-            id = self.rng.gen::<usize>();
-            if id > 0 {
-                break;
-            }
-        }
-        self.sessions.insert(id, msg.addr);
-
-        // send id back
-        id
-    }
-}
-
 /// Handler for Disconnect message.
 impl Handler<Disconnect> for WebSocketServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        println!("Someone disconnected");
-
         let mut rooms_leaving: Vec<String> = Vec::new();
 
         // remove address
         if self.sessions.remove(&msg.id).is_some() {
-            // remove session from all rooms
+            // remove session from rooms
             for (name, rooms) in &mut self.rooms {
                 if rooms.connected.remove_entry(&msg.id).is_some() {
                     rooms_leaving.push(name.to_owned());
+                    break;
                 }
             }
         }
         // send message to other users
         for room in rooms_leaving {
-            self.send_message_all(&room, "Someone disconnected");
+            let msg = json!({
+                "type": "left",
+                "id": &msg.id,
+            })
+            .to_string();
+
+            self.send_message_all(&room, msg.as_str());
         }
     }
 }
@@ -232,21 +192,6 @@ impl Handler<ClientMessage> for WebSocketServer {
     }
 }
 
-/// Handler for `ListRooms` message.
-impl Handler<ListRooms> for WebSocketServer {
-    type Result = MessageResult<ListRooms>;
-
-    fn handle(&mut self, _: ListRooms, _: &mut Context<Self>) -> Self::Result {
-        let mut rooms = Vec::new();
-
-        for key in self.rooms.keys() {
-            rooms.push(key.to_owned())
-        }
-
-        MessageResult(rooms)
-    }
-}
-
 /// Join room, send disconnect message to old room
 /// send join message to new room
 impl Handler<Join> for WebSocketServer {
@@ -254,23 +199,13 @@ impl Handler<Join> for WebSocketServer {
 
     fn handle(&mut self, msg: Join, _: &mut Context<Self>) {
         let Join {
+            addr,
             user_id,
             user_name,
             room_name,
         } = msg;
-        let mut rooms_leaving = Vec::new();
-        println!("{} ({}) joining {}", user_name, user_id, room_name);
 
-        // remove session from all rooms
-        for (n, rooms) in &mut self.rooms {
-            if rooms.connected.remove_entry(&user_id).is_some() {
-                rooms_leaving.push(n.to_owned());
-            }
-        }
-        // send message to other users
-        for room in rooms_leaving {
-            self.send_message_all(&room, "Someone disconnected");
-        }
+        self.sessions.insert(user_id, addr);
 
         self.rooms
             .entry(room_name.clone())
@@ -298,12 +233,6 @@ impl Handler<Join> for WebSocketServer {
 
         self.send_message_user(&room_name, msg.as_str(), user_id);
     }
-}
-
-#[derive(Serialize)]
-struct IncrementPayload {
-    object: String,
-    owner: usize,
 }
 
 impl Handler<Raise> for WebSocketServer {

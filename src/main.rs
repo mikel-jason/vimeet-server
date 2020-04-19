@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use actix::*;
@@ -21,15 +22,16 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Entry point for our route
 async fn web_socket_route(
     req: HttpRequest,
+    path: web::Path<(String, String)>,
     stream: web::Payload,
     srv: web::Data<Addr<server::WebSocketServer>>,
 ) -> Result<HttpResponse, Error> {
     ws::start(
         WsWebSocketSession {
-            id: 0,
+            id: get_id(),
             hb: Instant::now(),
-            room: "Lobby".to_string(),
-            name: "TEMPORARY NAME?".to_string(), // TODO
+            room: path.0.clone(),
+            name: path.1.clone(),
             addr: srv.get_ref().clone(),
         },
         &req,
@@ -65,13 +67,16 @@ impl Actor for WsWebSocketSession {
         // across all routes within application
         let addr = ctx.address();
         self.addr
-            .send(server::Connect {
+            .send(server::Join {
                 addr: addr.recipient(),
+                room_name: self.room.clone(),
+                user_id: self.id,
+                user_name: self.name.clone(),
             })
             .into_actor(self)
-            .then(|res, act, ctx| {
+            .then(|res, _, ctx| {
                 match res {
-                    Ok(res) => act.id = res,
+                    Ok(_) => (), // act.id = res,
                     // something is wrong with web socket server
                     _ => ctx.stop(),
                 }
@@ -132,20 +137,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                         };
 
                         match r#type {
-                            "join" => {
-                                let room = jsonmsg["room"].as_str();
-                                let name = jsonmsg["name"].as_str();
-
-                                if room.is_some() && name.is_some() {
-                                    self.addr.do_send(server::Join {
-                                        user_id: self.id,
-                                        user_name: name.unwrap().to_string(),
-                                        room_name: room.unwrap().to_string(),
-                                    });
-                                    self.name = name.unwrap().to_string();
-                                    self.room = room.unwrap().to_string();
-                                }
-                            }
                             "raise" => match jsonmsg["raiseobject"].as_str() {
                                 Some(object) => self.addr.do_send(server::Raise {
                                     object: object.to_string(),
@@ -233,11 +224,16 @@ async fn main() -> std::io::Result<()> {
                     .finish()
             })))
             // websocket
-            .service(web::resource("/ws/").to(web_socket_route))
+            .service(web::resource("/ws/{room}/{name}/").to(web_socket_route))
             // static resources
             .service(fs::Files::new("/static/", "static/"))
     })
     .bind(bind_address.as_str())?
     .run()
     .await
+}
+
+fn get_id() -> usize {
+    static COUNTER: AtomicUsize = AtomicUsize::new(1);
+    COUNTER.fetch_add(1, Ordering::Relaxed)
 }

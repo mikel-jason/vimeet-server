@@ -16,20 +16,9 @@
           var wsUri =
             ((window.location.protocol == "https:" && "wss://") || "ws://") +
             window.location.host +
-            "/ws/";
+            `/ws/${encodeURIComponent($('#room').val())}/${encodeURIComponent($('#name').val())}/`;
           conn = new WebSocket(wsUri);
           log("Connecting...");
-          conn.onopen = function () {
-            let msg = {
-              type: 'join',
-              room: $('#room').val(),
-              name: $('#name').val(),
-            };
-            conn.send(JSON.stringify(msg));
-            // conn.send(`/join ${$('#room').val()}`)
-            log("Connected.");
-            update_ui();
-          };
           conn.onmessage = function (e) {
             console.log(e.data);
             log("Received: " + e.data);
