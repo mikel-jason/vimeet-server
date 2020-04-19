@@ -46,6 +46,12 @@ impl Default for Room {
     }
 }
 
+impl Room {
+    fn remove_user(&mut self, user_id: &usize) {
+        self.raised.retain(|elem| &elem.owner_id != user_id);
+    }
+}
+
 #[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
 pub struct Raise {
@@ -171,14 +177,20 @@ impl Handler<Disconnect> for WebSocketServer {
             }
         }
         // send message to other users
-        for room in rooms_leaving {
-            let msg = json!({
-                "type": "left",
-                "id": &msg.id,
+        for room_name in rooms_leaving {
+            let room = self
+                .rooms
+                .entry(room_name.clone())
+                .or_insert(Room::default());
+            room.remove_user(&msg.id);
+
+            let txt = json!({
+                "type": "all",
+                "raised": room.raised,
+                "joined": room.connected,
             })
             .to_string();
-
-            self.send_message_all(&room, msg.as_str());
+            self.send_message_all(&room_name, txt.as_str());
         }
     }
 }
