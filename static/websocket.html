@@ -76,7 +76,6 @@
             type: 'raise',
             raiseobject: $('#raiseobject').val(),
           };
-          console.log(text);
           conn.send(JSON.stringify(text));
         });
         $('#lowerBtn').click(() => {
@@ -84,7 +83,13 @@
             type: 'lower',
             lowerobject: $('#lowerobject').val(),
           };
-          console.log(text);
+          conn.send(JSON.stringify(text));
+        });
+        $('#instantBtn').click(() => {
+          let text = {
+            type: 'instant',
+            instantobject: $('#instantobject').val(),
+          };
           conn.send(JSON.stringify(text));
         });
       });
@@ -126,6 +131,10 @@
     <form id="lowerform" onsubmit="return false;">
       <input id="lowerobject" type="text" />
       <input id="lowerBtn" type="button" value="Lower" />
+    </form>
+    <form id="instantform" onsubmit="return false;">
+      <input id="instantobject" type="text" />
+      <input id="instantBtn" type="button" value="Send instant" />
     </form>
   </body>
 </html>

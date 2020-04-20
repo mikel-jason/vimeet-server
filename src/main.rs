@@ -155,6 +155,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                                 }),
                                 None => (),
                             },
+                            "instant" => match jsonmsg["instantobject"].as_str() {
+                                Some(object) => self.addr.do_send(server::Instant {
+                                    object: object.to_string(),
+                                    owner_id: self.id,
+                                    owner_name: self.name.clone(),
+                                    room_name: self.room.to_owned(),
+                                }),
+                                None => (),
+                            },
                             _ => (),
                         }
                     }

@@ -84,6 +84,15 @@ pub struct Lower {
     pub room_name: String,
 }
 
+#[derive(Message, Serialize, Clone)]
+#[rtype(result = "()")]
+pub struct Instant {
+    pub object: String,
+    pub owner_id: usize,
+    pub owner_name: String,
+    pub room_name: String,
+}
+
 /// Join room, if room does not exists create new one.
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -314,5 +323,20 @@ impl Handler<Lower> for WebSocketServer {
             "object": msg.object,
         });
         self.send_message_all(&msg.room_name, &txt.to_string());
+    }
+}
+
+impl Handler<Instant> for WebSocketServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Instant, _: &mut Context<Self>) {
+        let txt = json!({
+            "type": "instant",
+            "owner_id": msg.owner_id,
+            "owner_name": msg.owner_name,
+            "object": msg.object,
+        })
+        .to_string();
+        self.send_message_all(&msg.room_name, &txt);
     }
 }
