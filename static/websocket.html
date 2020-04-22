@@ -92,6 +92,32 @@
           };
           conn.send(JSON.stringify(text));
         });
+        $('#pollBtn').click(() => {
+          let text = {
+            type: 'poll',
+            pollobject: $('#polltitle').val(),
+          };
+          console.log(text);
+          conn.send(JSON.stringify(text));
+        });
+        $('#polloptionBtn').click(() => {
+          let text = {
+            type: 'polloption',
+            polloptionobject: $('#polloptiontitle').val(),
+            pollobject: $('#polloptionpolltitle').val(),
+          };
+          console.log(text);
+          conn.send(JSON.stringify(text));
+        });
+        $('#voteBtn').click(() => {
+          let text = {
+            type: 'vote',
+            polloptionobject: $('#voteoptiontitle').val(),
+            pollobject: $('#votepolltitle').val(),
+          };
+          console.log(text);
+          conn.send(JSON.stringify(text));
+        });
       });
     </script>
   </head>
@@ -135,6 +161,20 @@
     <form id="instantform" onsubmit="return false;">
       <input id="instantobject" type="text" />
       <input id="instantBtn" type="button" value="Send instant" />
+    </form>
+    <form id="pollform" onsubmit="return false;">
+      <input id="polltitle" type="text" placeholder="poll_title" />
+      <input id="pollBtn" type="button" value="Create Poll" />
+    </form>
+    <form id="polloptionform" onsubmit="return false;">
+      <input id="polloptiontitle" type="text" placeholder="option_title" />
+      <input id="polloptionpolltitle" type="text" placeholder="poll_title" />
+      <input id="polloptionBtn" type="button" value="Create Poll Option" />
+    </form>
+    <form id="voteform" onsubmit="return false;">
+      <input id="voteoptiontitle" type="text" placeholder="option_title" />
+      <input id="votepolltitle" type="text" placeholder="poll_title" />
+      <input id="voteBtn" type="button" value="Vote" />
     </form>
   </body>
 </html>

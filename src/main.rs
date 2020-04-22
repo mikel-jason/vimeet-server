@@ -164,6 +164,47 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                                 }),
                                 None => (),
                             },
+                            "poll" => match jsonmsg["pollobject"].as_str() {
+                                Some(object) => self.addr.do_send(server::Poll {
+                                    title: object.to_string(),
+                                    owner_id: self.id,
+                                    owner_name: self.name.clone(),
+                                    room_name: self.room.to_owned(),
+                                    options: Vec::new(),
+                                    votes: HashMap::new(),
+                                }),
+                                None => (),
+                            },
+                            "polloption" => match (
+                                jsonmsg["polloptionobject"].as_str(),
+                                jsonmsg["pollobject"].as_str(),
+                            ) {
+                                (Some(option), Some(poll)) => {
+                                    self.addr.do_send(server::PollOption {
+                                        poll_title: poll.to_string(),
+                                        title: option.to_string(),
+                                        owner_id: self.id,
+                                        owner_name: self.name.clone(),
+                                        room_name: self.room.to_owned(),
+                                    })
+                                }
+                                (_, _) => (),
+                            },
+                            "vote" => match (
+                                jsonmsg["polloptionobject"].as_str(),
+                                jsonmsg["pollobject"].as_str(),
+                            ) {
+                                (Some(option), Some(poll)) => {
+                                    self.addr.do_send(server::PollVoteHelper {
+                                        owner_id: self.id,
+                                        owner_name: self.name.clone(),
+                                        room_name: self.room.to_owned(),
+                                        poll_title: poll.to_string(),
+                                        option_title: option.to_string(),
+                                    })
+                                }
+                                (_, _) => (),
+                            },
                             _ => (),
                         }
                     }

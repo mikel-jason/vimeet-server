@@ -34,6 +34,7 @@ pub struct ClientMessage {
 #[derive(Clone)]
 pub struct Room {
     raised: Vec<Raised>,
+    polls: Vec<Poll>,
     connected: HashMap<usize, String>,
 }
 
@@ -41,6 +42,7 @@ impl Default for Room {
     fn default() -> Room {
         Room {
             raised: Vec::new(),
+            polls: Vec::new(),
             connected: HashMap::new(),
         }
     }
@@ -50,6 +52,37 @@ impl Room {
     fn remove_user(&mut self, user_id: &usize) {
         self.raised.retain(|elem| &elem.owner_id != user_id);
     }
+}
+
+#[derive(Message, Serialize, Clone)]
+#[rtype(result = "()")]
+pub struct PollVoteHelper {
+    pub owner_id: usize,
+    pub owner_name: String,
+    pub room_name: String,
+    pub poll_title: String,
+    pub option_title: String,
+}
+
+#[derive(Message, Serialize, Clone)]
+#[rtype(result = "()")]
+pub struct PollOption {
+    pub title: String,
+    pub owner_id: usize,
+    pub owner_name: String,
+    pub room_name: String,
+    pub poll_title: String,
+}
+
+#[derive(Message, Serialize, Clone)]
+#[rtype(result = "()")]
+pub struct Poll {
+    pub title: String,
+    pub owner_id: usize,
+    pub owner_name: String,
+    pub room_name: String,
+    pub options: Vec<PollOption>,
+    pub votes: HashMap<usize, String>, // HashMap<user_id, option_title>
 }
 
 #[derive(Message, Serialize, Clone)]
@@ -338,5 +371,128 @@ impl Handler<Instant> for WebSocketServer {
         })
         .to_string();
         self.send_message_all(&msg.room_name, &txt);
+    }
+}
+
+impl Handler<Poll> for WebSocketServer {
+    type Result = ();
+
+    fn handle(&mut self, poll: Poll, _: &mut Context<Self>) {
+        // get room
+        let room = self
+            .rooms
+            .entry(poll.room_name.clone())
+            .or_insert(Room::default());
+
+        // check if poll already exists
+        let mut poll_exists = room.polls.clone();
+        poll_exists.retain(|elem| &elem.title == &poll.title);
+
+        if poll_exists.len() > 0 {
+            println!("Poll with that title already exists!");
+            return;
+        }
+
+        // add poll to room
+        room.polls.push(poll);
+
+        // TODO: send poll message to clients
+    }
+}
+
+impl Handler<PollOption> for WebSocketServer {
+    type Result = ();
+
+    fn handle(&mut self, poll_option: PollOption, _: &mut Context<Self>) {
+        // get room
+        let room = self
+            .rooms
+            .entry(poll_option.room_name.clone())
+            .or_insert(Room::default());
+
+        // check if poll exists
+        let mut poll_exists = room.polls.clone();
+        poll_exists.retain(|poll| poll.title == poll_option.poll_title);
+
+        if poll_exists.len() == 0 {
+            println!("Poll with that title doesn't exist!");
+            return;
+        }
+
+        // get poll
+        let poll_index = room
+            .polls
+            .iter()
+            .position(|poll| poll.title == poll_option.poll_title)
+            .unwrap();
+        let poll = room.polls.get_mut(poll_index).unwrap();
+
+        // check if poll_option already exists
+        let mut poll_option_exists = poll.options.clone();
+        poll_option_exists
+            .retain(|existing_poll_option| existing_poll_option.title == poll_option.title);
+
+        if poll_option_exists.len() > 0 {
+            println!("Poll-Option with that title in this poll does already exist!");
+            return;
+        }
+
+        // add poll_option to poll
+        poll.options.push(poll_option);
+
+        // TODO: send poll message to clients
+    }
+}
+
+impl Handler<PollVoteHelper> for WebSocketServer {
+    type Result = ();
+
+    fn handle(&mut self, vote: PollVoteHelper, _: &mut Context<Self>) {
+        // get room
+        let room = self
+            .rooms
+            .entry(vote.room_name.clone())
+            .or_insert(Room::default());
+
+        // check if poll exists
+        let mut poll_exists = room.polls.clone();
+        poll_exists.retain(|elem| &elem.title == &vote.poll_title);
+
+        if poll_exists.len() == 0 {
+            println!("Poll with that title doesn't exist!");
+            return;
+        }
+
+        // get poll
+        let poll_index = room
+            .polls
+            .iter()
+            .position(|poll| poll.title == vote.poll_title)
+            .unwrap();
+        let poll = room.polls.get_mut(poll_index).unwrap();
+
+        // check if poll_option exists
+        let mut poll_option_exists = poll.options.clone();
+        poll_option_exists
+            .retain(|existing_poll_option| existing_poll_option.title == vote.option_title);
+
+        if poll_option_exists.len() == 0 {
+            println!("Poll-Option with that title in this poll doesn't exist!");
+            return;
+        }
+
+        // check if user has already voted
+        if poll.votes.contains_key(&vote.owner_id) {
+            // remove existing vote
+            println!(
+                "User has already votes in this poll, removing existing vote and adding new vote."
+            );
+            poll.votes.remove(&vote.owner_id);
+        }
+
+        // add vote to poll
+        poll.votes.insert(vote.owner_id, vote.option_title);
+
+        // TODO: send poll message to clients
     }
 }
