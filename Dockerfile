@@ -1,16 +1,17 @@
-FROM rust:1.41 AS builder
+FROM ekidd/rust-musl-builder:stable AS builder
 
 WORKDIR /usr/vimeet-server
+RUN sudo chown -R rust:rust .
 COPY . .
 RUN cargo build --release
 
 
-FROM debian:buster-slim
+FROM alpine:3.11 
 LABEL Maintainer "Mikel Muennekhoff <inf18207@lehre.dhbw-stuttgart.de>"
 
 WORKDIR /usr/vimeet-server
 
-COPY --from=builder /usr/vimeet-server/target/release/vimeet-server .
+COPY --from=builder /usr/vimeet-server/target/x86_64-unknown-linux-musl/release/vimeet-server .
 COPY --from=builder /usr/vimeet-server/static /usr/vimeet-server/static 
 COPY --from=builder /usr/vimeet-server/.env /usr/vimeet-server/.env 
 
