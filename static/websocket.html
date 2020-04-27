@@ -118,6 +118,22 @@
           console.log(text);
           conn.send(JSON.stringify(text));
         });
+        $('#elevateBtn').click(() => {
+          let text = {
+            type: 'elevate',
+            object: Number($('#priviligeobject').val()),
+          };
+          console.log(text);
+          conn.send(JSON.stringify(text));
+        });
+        $('#recedeBtn').click(() => {
+          let text = {
+            type: 'recede',
+            object: Number($('#priviligeobject').val()),
+          };
+          console.log(text);
+          conn.send(JSON.stringify(text));
+        });
       });
     </script>
   </head>
@@ -175,6 +191,11 @@
       <input id="voteoptiontitle" type="text" placeholder="option_title" />
       <input id="votepolltitle" type="text" placeholder="poll_title" />
       <input id="voteBtn" type="button" value="Vote" />
+    </form>
+    <form id="priviligesform" onsubmit="return false;">
+      <input id="priviligeobject" type="text" />
+      <input id="elevateBtn" type="button" value="Elevate" />
+      <input id="recedeBtn" type="button" value="Recede" />
     </form>
   </body>
 </html>

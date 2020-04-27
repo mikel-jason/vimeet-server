@@ -205,6 +205,22 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                                 }
                                 (_, _) => (),
                             },
+                            "elevate" => match jsonmsg["object"].to_string().parse::<usize>() {
+                                Ok(object) => self.addr.do_send(server::Elevate {
+                                    object,
+                                    owner_id: self.id,
+                                    room_name: self.room.to_owned(),
+                                }),
+                                Err(_) => (),
+                            },
+                            "recede" => match jsonmsg["object"].to_string().parse::<usize>() {
+                                Ok(object) => self.addr.do_send(server::Recede {
+                                    object,
+                                    owner_id: self.id,
+                                    room_name: self.room.to_owned(),
+                                }),
+                                Err(_) => (),
+                            },
                             _ => (),
                         }
                     }

@@ -19,6 +19,22 @@ pub struct Disconnect {
     pub id: usize,
 }
 
+#[derive(Message, Serialize, Clone)]
+#[rtype(result = "()")]
+pub struct Elevate {
+    pub object: usize,
+    pub owner_id: usize,
+    pub room_name: String,
+}
+
+#[derive(Message, Serialize, Clone)]
+#[rtype(result = "()")]
+pub struct Recede {
+    pub object: usize,
+    pub owner_id: usize,
+    pub room_name: String,
+}
+
 /// Send message to specific room
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -35,7 +51,13 @@ pub struct ClientMessage {
 pub struct Room {
     raised: Vec<Raised>,
     polls: Vec<Poll>,
-    connected: HashMap<usize, String>,
+    connected: HashMap<usize, User>,
+}
+
+#[derive(Clone, Serialize)]
+struct User {
+    name: String,
+    elevated: bool,
 }
 
 impl Default for Room {
@@ -51,6 +73,22 @@ impl Default for Room {
 impl Room {
     fn remove_user(&mut self, user_id: &usize) {
         self.raised.retain(|elem| &elem.owner_id != user_id);
+    }
+
+    fn is_elevated(&self, user_id: &usize) -> Result<bool, &'static str> {
+        match self.connected.get(user_id) {
+            None => Err(""),
+            Some(user) => Ok(user.elevated),
+        }
+    }
+
+    fn set_elevated(&mut self, user_id: &usize, elevated: bool) {
+        match self.connected.get_mut(user_id) {
+            None => {
+                return;
+            }
+            Some(connected) => connected.elevated = elevated,
+        }
     }
 }
 
@@ -261,16 +299,29 @@ impl Handler<Join> for WebSocketServer {
 
         self.sessions.insert(user_id, addr);
 
-        self.rooms
+        let room = self
+            .rooms
             .entry(room_name.clone())
-            .or_insert(Room::default())
-            .connected
-            .insert(user_id, user_name.clone());
+            .or_insert(Room::default());
+
+        let elevated = if room.connected.len() > 0 {
+            false
+        } else {
+            true
+        };
+        room.connected.insert(
+            user_id,
+            User {
+                name: user_name.clone(),
+                elevated,
+            },
+        );
 
         let msg = json!({
             "type": "joined",
             "name": user_name,
             "id": user_id,
+            "elevated": elevated
         })
         .to_string();
 
@@ -306,11 +357,19 @@ impl Handler<Raise> for WebSocketServer {
             return;
         }
 
+        let elevated = self
+            .rooms
+            .get(msg.room_name.as_str())
+            .unwrap()
+            .is_elevated(&msg.owner_id)
+            .unwrap_or(false);
+
         let txt = json!({
             "type": "raised",
             "owner_id": msg.owner_id,
             "owner_name": msg.owner_name,
             "object": &msg.object,
+            "elevated": elevated,
         });
         self.send_message_all(msg.room_name.as_str(), &txt.to_string());
 
@@ -349,11 +408,19 @@ impl Handler<Lower> for WebSocketServer {
 
         room.raised.retain(|elem| elem != &raised_equivalent);
 
+        let elevated = self
+            .rooms
+            .get(msg.room_name.as_str())
+            .unwrap()
+            .is_elevated(&msg.owner_id)
+            .unwrap_or(false);
+
         let txt = json!({
             "type": "lower",
             "owner_id": msg.owner_id,
             "owner_name": msg.owner_name,
             "object": msg.object,
+            "elevated": elevated,
         });
         self.send_message_all(&msg.room_name, &txt.to_string());
     }
@@ -363,11 +430,19 @@ impl Handler<Instant> for WebSocketServer {
     type Result = ();
 
     fn handle(&mut self, msg: Instant, _: &mut Context<Self>) {
+        let elevated = self
+            .rooms
+            .get(msg.room_name.as_str())
+            .unwrap()
+            .is_elevated(&msg.owner_id)
+            .unwrap_or(false);
+
         let txt = json!({
             "type": "instant",
             "owner_id": msg.owner_id,
             "owner_name": msg.owner_name,
             "object": msg.object,
+            "elevated": elevated,
         })
         .to_string();
         self.send_message_all(&msg.room_name, &txt);
@@ -397,6 +472,7 @@ impl Handler<Poll> for WebSocketServer {
         room.polls.push(poll);
 
         // TODO: send poll message to clients
+        // -> either including 'elevated' flag or only allowed with elevated priviliges
     }
 }
 
@@ -494,5 +570,65 @@ impl Handler<PollVoteHelper> for WebSocketServer {
         poll.votes.insert(vote.owner_id, vote.option_title);
 
         // TODO: send poll message to clients
+    }
+}
+impl WebSocketServer {
+    /// Handles managing priligiges on request
+    ///
+    /// # Arguments
+    /// * `room_name` - The room in which the user's priviliges should be changed
+    /// * `requested_id` - The user who requests the change. Elevated priviliges needed.
+    /// * `user_id` - The user whose priviliges should be changed.
+    /// * `elevated` - If the user should have elevated priviliges or not.
+    fn process_priviliges(
+        &mut self,
+        room_name: &String,
+        requester_id: usize,
+        user_id: usize,
+        elevated: bool,
+    ) -> Result<(), &'static str> {
+        if let Some(room) = self.rooms.get_mut(room_name) {
+            if room.is_elevated(&requester_id)? && room.is_elevated(&user_id)? != elevated {
+                room.set_elevated(&user_id, elevated);
+                return Ok(());
+            }
+        }
+        Err("")
+    }
+}
+
+impl Handler<Elevate> for WebSocketServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Elevate, _: &mut Context<Self>) {
+        match self.process_priviliges(&msg.room_name, msg.owner_id, msg.object, true) {
+            Err(_) => (),
+            Ok(_) => {
+                let txt = json!({
+                    "type": "elevated",
+                    "object": msg.object,
+                })
+                .to_string();
+                self.send_message_all(&msg.room_name, &txt);
+            }
+        }
+    }
+}
+
+impl Handler<Recede> for WebSocketServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Recede, _: &mut Context<Self>) {
+        match self.process_priviliges(&msg.room_name, msg.owner_id, msg.object, false) {
+            Err(_) => (),
+            Ok(_) => {
+                let txt = json!({
+                    "type": "receded",
+                    "object": msg.object,
+                })
+                .to_string();
+                self.send_message_all(&msg.room_name, &txt);
+            }
+        }
     }
 }
