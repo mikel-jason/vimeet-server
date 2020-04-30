@@ -3,6 +3,7 @@ FROM ekidd/rust-musl-builder:stable AS builder
 WORKDIR /usr/vimeet-server
 RUN sudo chown -R rust:rust .
 COPY . .
+RUN sudo touch .env
 RUN cargo build --release
 
 
@@ -18,6 +19,7 @@ COPY --from=builder /usr/vimeet-server/.env /usr/vimeet-server/.env
 # Overruling .env 
 ENV PORT 8080
 RUN sed -ie "s/VIMEET_BIND_ADDRESS=.*//g" .env
+RUN echo "\n" >> .env
 RUN echo "VIMEET_BIND_ADDRESS=0.0.0.0" >> .env
 
 CMD [ "./vimeet-server" ]
