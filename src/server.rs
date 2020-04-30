@@ -319,9 +319,11 @@ impl Handler<Join> for WebSocketServer {
 
         let msg = json!({
             "type": "joined",
-            "name": user_name,
-            "id": user_id,
-            "elevated": elevated
+            "object" : {
+                "name": user_name,
+                "id": user_id,
+                "elevated": elevated
+            }
         })
         .to_string();
 
