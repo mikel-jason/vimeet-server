@@ -339,6 +339,14 @@ impl Handler<Join> for WebSocketServer {
         .to_string();
 
         self.send_message_user(&room_name, msg.as_str(), user_id);
+
+        let msg = json!({
+            "type": "self",
+            "id": user_id,
+        })
+        .to_string();
+
+        self.send_message_user(&room_name, msg.as_str(), user_id);
     }
 }
 
