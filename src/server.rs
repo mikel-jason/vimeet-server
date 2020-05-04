@@ -909,6 +909,36 @@ impl WebSocketServer {
         if let Some(room) = self.rooms.get_mut(room_name) {
             if room.is_elevated(&requester_id)? && room.is_elevated(&user_id)? != elevated {
                 room.set_elevated(&user_id, elevated);
+
+                // resend votes (with user_id and user_name) for open polls
+                let room_imut = room.clone();
+                for poll in room_imut.polls.clone() {
+                    if !poll.closed {
+                        // send votes for poll
+                        for (userid, option_title) in poll.votes.clone() {
+                            let user = room_imut.connected.get(&userid).unwrap();
+
+                            let del_vote_txt = json!({
+                            "type": "deletevote",
+                            "pollobject": poll.title,
+                            "polloptionobject": option_title,
+                            })
+                            .to_string();
+                            self.send_message_user(&room_name, &del_vote_txt, user_id);
+
+                            let vote_txt = json!({
+                            "type": "vote",
+                            "pollobject": poll.title,
+                            "polloptionobject": option_title,
+                            "username": user.name,
+                            "userid": userid,
+                            })
+                            .to_string();
+                            self.send_message_user(&room_name, &vote_txt, user_id);
+                        }
+                    }
+                }
+
                 return Ok(());
             }
         }
