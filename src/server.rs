@@ -4,7 +4,7 @@
 
 use actix::prelude::*;
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 /// web socket server sends this messages to session
@@ -165,10 +165,10 @@ pub struct Lower {
     pub room_name: String,
 }
 
-#[derive(Message, Serialize, Clone)]
+#[derive(Message, Serialize, Clone, Debug)]
 #[rtype(result = "()")]
 pub struct Instant {
-    pub object: String,
+    pub object: Value,
     pub owner_id: usize,
     pub owner_name: String,
     pub room_name: String,
