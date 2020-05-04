@@ -421,6 +421,7 @@ impl Handler<Join> for WebSocketServer {
         } else {
             true
         };
+
         room.connected.insert(
             user_id,
             User {
@@ -441,7 +442,10 @@ impl Handler<Join> for WebSocketServer {
 
         self.send_message_skip_user(&room_name, msg.as_str(), user_id);
 
-        let room = self.rooms.get(&room_name).unwrap();
+        let room = self
+            .rooms
+            .entry(room_name.clone())
+            .or_insert(Room::default());
 
         let msg = json!({
             "type": "all",
@@ -460,7 +464,44 @@ impl Handler<Join> for WebSocketServer {
 
         self.send_message_user(&room_name, msg.as_str(), user_id);
 
-        // TODO: add polls with options and votes
+        let room = self
+            .rooms
+            .entry(room_name.clone())
+            .or_insert(Room::default());
+
+        // send polls
+        for poll in room.polls.clone() {
+            if !poll.closed {
+                let poll_txt = json!({
+                    "type": "poll",
+                    "pollobject": poll.title,
+                })
+                .to_string();
+                self.send_message_user(&room_name, &poll_txt, user_id);
+
+                // send options for poll
+                for option in poll.options.clone() {
+                    let option_txt = json!({
+                        "type": "polloption",
+                        "pollobject": poll.title,
+                        "polloptionobject": option.title,
+                    })
+                    .to_string();
+                    self.send_message_user(&room_name, &option_txt, user_id);
+                }
+
+                // send votes for poll
+                for (_, option_title) in poll.votes.clone() {
+                    let vote_txt = json!({
+                        "type": "vote",
+                        "pollobject": poll.title,
+                        "polloptionobject": option_title,
+                    })
+                    .to_string();
+                    self.send_message_user(&room_name, &vote_txt, user_id);
+                }
+            }
+        }
     }
 }
 
