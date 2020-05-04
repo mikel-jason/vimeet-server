@@ -918,23 +918,40 @@ impl WebSocketServer {
                         for (userid, option_title) in poll.votes.clone() {
                             let user = room_imut.connected.get(&userid).unwrap();
 
-                            let del_vote_txt = json!({
-                            "type": "deletevote",
-                            "pollobject": poll.title,
-                            "polloptionobject": option_title,
-                            })
-                            .to_string();
-                            self.send_message_user(&room_name, &del_vote_txt, user_id);
-
-                            let vote_txt = json!({
-                            "type": "vote",
-                            "pollobject": poll.title,
-                            "polloptionobject": option_title,
-                            "username": user.name,
-                            "userid": userid,
-                            })
-                            .to_string();
-                            self.send_message_user(&room_name, &vote_txt, user_id);
+                            if elevated {
+                                let del_vote_txt = json!({
+                                    "type": "deletevote",
+                                    "pollobject": poll.title,
+                                    "polloptionobject": option_title,
+                                })
+                                .to_string();
+                                self.send_message_user(&room_name, &del_vote_txt, user_id);
+                                let vote_txt = json!({
+                                    "type": "vote",
+                                    "pollobject": poll.title,
+                                    "polloptionobject": option_title,
+                                    "username": user.name,
+                                    "userid": userid,
+                                })
+                                .to_string();
+                                self.send_message_user(&room_name, &vote_txt, user_id);
+                            } else {
+                                let del_vote_txt = json!({
+                                    "type": "deletevote",
+                                    "pollobject": poll.title,
+                                    "polloptionobject": option_title,
+                                    "userid": userid,
+                                })
+                                .to_string();
+                                self.send_message_user(&room_name, &del_vote_txt, user_id);
+                                let vote_txt = json!({
+                                    "type": "vote",
+                                    "pollobject": poll.title,
+                                    "polloptionobject": option_title,
+                                })
+                                .to_string();
+                                self.send_message_user(&room_name, &vote_txt, user_id);
+                            }
                         }
                     }
                 }
