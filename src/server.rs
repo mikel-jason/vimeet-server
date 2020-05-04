@@ -272,6 +272,8 @@ impl Handler<Disconnect> for WebSocketServer {
             .to_string();
             self.send_message_all(&room_name, txt.as_str());
         }
+
+        // TODO: remove votes (from closed polls only)
     }
 }
 
@@ -347,6 +349,8 @@ impl Handler<Join> for WebSocketServer {
         .to_string();
 
         self.send_message_user(&room_name, msg.as_str(), user_id);
+
+        // TODO: add polls with options and votes
     }
 }
 
@@ -468,6 +472,7 @@ impl Handler<Poll> for WebSocketServer {
             .rooms
             .entry(poll.room_name.clone())
             .or_insert(Room::default());
+        // TODO: check if user is elevated
 
         // check if poll already exists
         let mut poll_exists = room.polls.clone();
@@ -478,11 +483,20 @@ impl Handler<Poll> for WebSocketServer {
             return;
         }
 
+        // clone later needed values
+        let poll_title = poll.title.clone();
+        let room_name = poll.room_name.clone();
+
         // add poll to room
         room.polls.push(poll);
 
-        // TODO: send poll message to clients
-        // -> either including 'elevated' flag or only allowed with elevated priviliges
+        // send poll message to clients
+        let txt = json!({
+            "type": "poll",
+            "pollobject": poll_title,
+        })
+        .to_string();
+        self.send_message_all(&room_name, &txt);
     }
 }
 
@@ -523,10 +537,23 @@ impl Handler<PollOption> for WebSocketServer {
             return;
         }
 
+        // TODO: check if poll is not closed
+
+        // clone later needed values
+        let poll_option_title = poll_option.title.clone();
+        let room_name = poll_option.room_name.clone();
+
         // add poll_option to poll
         poll.options.push(poll_option);
 
-        // TODO: send poll message to clients
+        // send poll option message to clients
+        let txt = json!({
+            "type": "polloption",
+            "pollobject": poll.title,
+            "polloptionobject": poll_option_title,
+        })
+        .to_string();
+        self.send_message_all(&room_name, &txt);
     }
 }
 
@@ -567,6 +594,8 @@ impl Handler<PollVoteHelper> for WebSocketServer {
             return;
         }
 
+        // TODO: check if poll is not closed
+
         // check if user has already voted
         if poll.votes.contains_key(&vote.owner_id) {
             // remove existing vote
@@ -574,12 +603,27 @@ impl Handler<PollVoteHelper> for WebSocketServer {
                 "User has already votes in this poll, removing existing vote and adding new vote."
             );
             poll.votes.remove(&vote.owner_id);
+
+            // TODO: inform user about vote remove
         }
+
+        // clone later needed values
+        let poll_option_title = vote.poll_title.clone();
+        let room_name = vote.room_name.clone();
 
         // add vote to poll
         poll.votes.insert(vote.owner_id, vote.option_title);
 
-        // TODO: send poll message to clients
+        // TODO: send elevated users the voters-names
+
+        // send poll option message to clients
+        let txt = json!({
+            "type": "vote",
+            "pollobject": poll.title,
+            "polloptionobject": poll_option_title,
+        })
+        .to_string();
+        self.send_message_all(&room_name, &txt);
     }
 }
 impl WebSocketServer {
