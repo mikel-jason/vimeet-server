@@ -551,7 +551,17 @@ impl Handler<Poll> for WebSocketServer {
             .rooms
             .entry(poll.room_name.clone())
             .or_insert(Room::default());
-        // TODO: check if user is elevated
+
+        // check if user is elevated
+        let mut user_is_elevated = room.connected.clone();
+        user_is_elevated.retain(|id, user| {
+            id == &poll.owner_id && &user.name == &poll.owner_name && user.elevated
+        });
+
+        if user_is_elevated.len() == 0 {
+            println!("User does not have permission to create polls (not elevated)!");
+            return;
+        }
 
         // check if poll already exists
         let mut poll_exists = room.polls.clone();
@@ -588,6 +598,17 @@ impl Handler<PollOption> for WebSocketServer {
             .rooms
             .entry(poll_option.room_name.clone())
             .or_insert(Room::default());
+
+        // check if user is elevated
+        let mut user_is_elevated = room.connected.clone();
+        user_is_elevated.retain(|id, user| {
+            id == &poll_option.owner_id && &user.name == &poll_option.owner_name && user.elevated
+        });
+
+        if user_is_elevated.len() == 0 {
+            println!("User does not have permission to add poll options (not elevated)!");
+            return;
+        }
 
         // check if poll exists
         let mut poll_exists = room.polls.clone();
