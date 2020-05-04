@@ -94,6 +94,15 @@ impl Room {
 
 #[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
+pub struct PollCloseHelper {
+    pub sender_id: usize,
+    pub sender_name: String,
+    pub room_name: String,
+    pub poll_title: String,
+}
+
+#[derive(Message, Serialize, Clone)]
+#[rtype(result = "()")]
 pub struct PollVoteHelper {
     pub owner_id: usize,
     pub owner_name: String,
@@ -121,6 +130,7 @@ pub struct Poll {
     pub room_name: String,
     pub options: Vec<PollOption>,
     pub votes: HashMap<usize, String>, // HashMap<user_id, option_title>
+    pub closed: bool,
 }
 
 #[derive(Message, Serialize, Clone)]
@@ -527,6 +537,11 @@ impl Handler<PollOption> for WebSocketServer {
             .unwrap();
         let poll = room.polls.get_mut(poll_index).unwrap();
 
+        // check if poll is closed
+        if poll.closed {
+            println!("Poll is already closed!");
+        }
+
         // check if poll_option already exists
         let mut poll_option_exists = poll.options.clone();
         poll_option_exists
@@ -536,8 +551,6 @@ impl Handler<PollOption> for WebSocketServer {
             println!("Poll-Option with that title in this poll does already exist!");
             return;
         }
-
-        // TODO: check if poll is not closed
 
         // clone later needed values
         let poll_option_title = poll_option.title.clone();
@@ -584,6 +597,11 @@ impl Handler<PollVoteHelper> for WebSocketServer {
             .unwrap();
         let poll = room.polls.get_mut(poll_index).unwrap();
 
+        // check if poll is closed
+        if poll.closed {
+            println!("Poll is already closed!");
+        }
+
         // check if poll_option exists
         let mut poll_option_exists = poll.options.clone();
         poll_option_exists
@@ -593,8 +611,6 @@ impl Handler<PollVoteHelper> for WebSocketServer {
             println!("Poll-Option with that title in this poll doesn't exist!");
             return;
         }
-
-        // TODO: check if poll is not closed
 
         // check if user has already voted
         if poll.votes.contains_key(&vote.owner_id) {
@@ -626,6 +642,52 @@ impl Handler<PollVoteHelper> for WebSocketServer {
         self.send_message_all(&room_name, &txt);
     }
 }
+
+impl Handler<PollCloseHelper> for WebSocketServer {
+    type Result = ();
+
+    fn handle(&mut self, close: PollCloseHelper, _: &mut Context<Self>) {
+        // get room
+        let room = self
+            .rooms
+            .entry(close.room_name.clone())
+            .or_insert(Room::default());
+
+        // check if poll exists
+        let mut poll_exists = room.polls.clone();
+        poll_exists.retain(|elem| &elem.title == &close.poll_title);
+
+        if poll_exists.len() == 0 {
+            println!("Poll with that title doesn't exist!");
+            return;
+        }
+
+        // get poll
+        let poll_index = room
+            .polls
+            .iter()
+            .position(|poll| poll.title == close.poll_title)
+            .unwrap();
+        let poll = room.polls.get_mut(poll_index).unwrap();
+
+        // check if poll is closed
+        if poll.closed {
+            println!("Poll is already closed!");
+        }
+
+        // close poll
+        poll.closed = true;
+
+        // send poll option message to clients
+        let txt = json!({
+            "type": "closepoll",
+            "pollobject": poll.title,
+        })
+        .to_string();
+        self.send_message_all(&close.room_name, &txt);
+    }
+}
+
 impl WebSocketServer {
     /// Handles managing priligiges on request
     ///

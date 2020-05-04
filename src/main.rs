@@ -172,6 +172,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                                     room_name: self.room.to_owned(),
                                     options: Vec::new(),
                                     votes: HashMap::new(),
+                                    closed: false,
                                 }),
                                 None => (),
                             },
@@ -204,6 +205,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                                     })
                                 }
                                 (_, _) => (),
+                            },
+                            "closepoll" => match jsonmsg["pollobject"].as_str() {
+                                Some(object) => self.addr.do_send(server::PollCloseHelper {
+                                    poll_title: object.to_string(),
+                                    sender_id: self.id,
+                                    sender_name: self.name.clone(),
+                                    room_name: self.room.to_owned(),
+                                }),
+                                None => (),
                             },
                             "elevate" => match jsonmsg["object"].to_string().parse::<usize>() {
                                 Ok(object) => self.addr.do_send(server::Elevate {

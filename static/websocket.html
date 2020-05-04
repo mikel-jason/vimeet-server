@@ -118,6 +118,14 @@
           console.log(text);
           conn.send(JSON.stringify(text));
         });
+        $('#closePollBtn').click(() => {
+          let text = {
+            type: 'closepoll',
+            pollobject: $('#closepolltitle').val(),
+          };
+          console.log(text);
+          conn.send(JSON.stringify(text));
+        });
         $('#elevateBtn').click(() => {
           let text = {
             type: 'elevate',
@@ -191,6 +199,10 @@
       <input id="voteoptiontitle" type="text" placeholder="option_title" />
       <input id="votepolltitle" type="text" placeholder="poll_title" />
       <input id="voteBtn" type="button" value="Vote" />
+    </form>
+    <form id="closepoll" onsubmit="return false;">
+      <input id="closepolltitle" type="text" placeholder="poll_title" />
+      <input id="closePollBtn" type="button" value="Close Poll" />
     </form>
     <form id="priviligesform" onsubmit="return false;">
       <input id="priviligeobject" type="text" />
