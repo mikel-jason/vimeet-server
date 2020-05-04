@@ -695,7 +695,6 @@ impl Handler<PollVoteHelper> for WebSocketServer {
     type Result = ();
 
     fn handle(&mut self, vote: PollVoteHelper, _: &mut Context<Self>) {
-        // get room
         let room = self
             .rooms
             .entry(vote.room_name.clone())
@@ -735,26 +734,59 @@ impl Handler<PollVoteHelper> for WebSocketServer {
         }
 
         // check if user has already voted
+        let mut remove_vote = false;
+        let mut remove_vote_option_title = "".to_string();
+
         if poll.votes.contains_key(&vote.owner_id) {
-            // remove existing vote
             println!(
                 "User has already votes in this poll, removing existing vote and adding new vote."
             );
-            poll.votes.remove(&vote.owner_id);
 
-            // TODO: inform user about vote remove
+            // send delete vote message to clients
+            for (userid, poll_option_title) in poll.votes.clone() {
+                if userid == vote.owner_id {
+                    remove_vote = true;
+                    remove_vote_option_title = poll_option_title.to_string().clone();
+                    break;
+                }
+            }
+
+            // remove existing vote
+            poll.votes.remove(&vote.owner_id);
         }
 
         // clone later needed values
-        let poll_option_title = vote.poll_title.clone();
+        let poll_option_title = vote.option_title.clone();
+        let poll_title = poll.title.clone();
 
         // add vote to poll
         poll.votes.insert(vote.owner_id, vote.option_title);
 
+        // inform other users if one vote has to be removed
+        if remove_vote {
+            let elevated_txt = json!({
+                "type": "deletevote",
+                "pollobject": poll_title,
+                "polloptionobject": remove_vote_option_title,
+                "userid": &vote.owner_id,
+            })
+            .to_string();
+
+            let not_elevated_txt = json!({
+                "type": "deletevote",
+                "pollobject": poll_title,
+                "polloptionobject": remove_vote_option_title,
+            })
+            .to_string();
+
+            self.send_message_all_elevated(&vote.room_name, &elevated_txt);
+            self.send_message_all_not_elevated(&vote.room_name, &not_elevated_txt);
+        }
+
         // send poll option message to clients
         let elevated_txt = json!({
             "type": "vote",
-            "pollobject": poll.title,
+            "pollobject": poll_title,
             "polloptionobject": poll_option_title,
             "username": vote.owner_name,
             "userid": vote.owner_id,
@@ -763,7 +795,7 @@ impl Handler<PollVoteHelper> for WebSocketServer {
 
         let not_elevated_txt = json!({
             "type": "vote",
-            "pollobject": poll.title,
+            "pollobject": poll_title,
             "polloptionobject": poll_option_title,
         })
         .to_string();
