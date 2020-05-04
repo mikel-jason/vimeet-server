@@ -323,26 +323,59 @@ impl Handler<Disconnect> for WebSocketServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        let mut rooms_leaving: Vec<String> = Vec::new();
+        let mut rooms_leaving: HashMap<String, Room> = HashMap::new();
 
         // remove address
         if self.sessions.remove(&msg.id).is_some() {
             // remove session from rooms
-            for (name, rooms) in &mut self.rooms {
-                if rooms.connected.remove_entry(&msg.id).is_some() {
-                    rooms_leaving.push(name.to_owned());
+            for (name, room) in &mut self.rooms {
+                if room.connected.remove_entry(&msg.id).is_some() {
+                    rooms_leaving.insert(name.to_owned(), room.to_owned());
                     break;
                 }
             }
         }
-        // send message to other users
-        for room_name in rooms_leaving {
-            let room = self
-                .rooms
-                .entry(room_name.clone())
-                .or_insert(Room::default());
-            room.remove_user(&msg.id);
 
+        // clear rooms
+        for (room_name, mut room) in rooms_leaving {
+            // get username
+            let user_id = msg.id;
+
+            // remove user from room
+            room.remove_user(&user_id);
+
+            // remove user votes from open polls
+            for mut poll in room.polls.clone() {
+                if !poll.closed {
+                    for (id, poll_option_title) in poll.votes.clone() {
+                        if id == msg.id {
+                            // delete vote
+                            poll.votes.remove_entry(&id);
+
+                            // send poll option message to clients
+                            let elevated_txt = json!({
+                                "type": "deletevote",
+                                "pollobject": poll.title,
+                                "polloptionobject": poll_option_title,
+                                "userid": user_id,
+                            })
+                            .to_string();
+
+                            let not_elevated_txt = json!({
+                                "type": "vote",
+                                "pollobject": poll.title,
+                                "polloptionobject": poll_option_title,
+                            })
+                            .to_string();
+
+                            self.send_message_all_elevated(&room_name, &elevated_txt);
+                            self.send_message_all_not_elevated(&room_name, &not_elevated_txt);
+                        }
+                    }
+                }
+            }
+
+            // send message to other users
             let txt = json!({
                 "type": "all",
                 "raised": room.raised,
@@ -351,8 +384,6 @@ impl Handler<Disconnect> for WebSocketServer {
             .to_string();
             self.send_message_all(&room_name, txt.as_str());
         }
-
-        // TODO: remove votes (from closed polls only)
     }
 }
 
@@ -685,6 +716,7 @@ impl Handler<PollVoteHelper> for WebSocketServer {
             .iter()
             .position(|poll| poll.title == vote.poll_title)
             .unwrap();
+
         let poll = room.polls.get_mut(poll_index).unwrap();
 
         // check if poll is closed
@@ -725,6 +757,7 @@ impl Handler<PollVoteHelper> for WebSocketServer {
             "pollobject": poll.title,
             "polloptionobject": poll_option_title,
             "username": vote.owner_name,
+            "userid": vote.owner_id,
         })
         .to_string();
 
