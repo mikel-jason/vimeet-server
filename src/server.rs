@@ -205,7 +205,15 @@ impl Default for WebSocketServer {
 }
 
 impl WebSocketServer {
-    /// Send message to all users in the room
+    /// send a message to some users in a room
+    ///
+    /// expect of the user given in the argument `skip_id`
+    ///
+    /// # Arguments
+    ///
+    /// * `room` - a string slice with the name of the room where the message has to be send
+    /// * `message` - a string slice that holds the message to be send
+    /// * `skip_id` - the user id of the user that should not receive the message
     fn send_message_skip_user(&self, room: &str, message: &str, skip_id: usize) {
         if let Some(room) = self.rooms.get(room) {
             let sessions = &room.connected;
@@ -221,10 +229,25 @@ impl WebSocketServer {
         }
     }
 
+    /// send a message to all users in a room
+    ///
+    /// This function uses `the send_message_skip_user()-function` with the `skip_user-argument` 0.
+    ///
+    /// # Arguments
+    ///
+    /// * `room` - a string slice with the name of the room where the message has to be send
+    /// * `message` - a string slice that holds the message to be send
     fn send_message_all(&self, room: &str, message: &str) {
         self.send_message_skip_user(room, message, 0);
     }
 
+    /// send a message to a specific users in a room
+    ///
+    /// # Arguments
+    ///
+    /// * `room` - a string slice with the name of the room where the message has to be send
+    /// * `message` - a string slice that holds the message to be send
+    /// * `user_id` - the user id of the user that should receive the message
     fn send_message_user(&self, room: &str, message: &str, user_id: usize) {
         if let Some(room) = self.rooms.get(room) {
             let sessions = &room.connected;
@@ -234,6 +257,52 @@ impl WebSocketServer {
                         let _ = addr.do_send(Message(message.to_owned()));
                     }
                     break;
+                }
+            }
+        } else {
+            println!("No room '{}' found", room);
+        }
+    }
+
+    /// send a message to all elevated users in a room
+    ///
+    /// This function loops threw all users in the given room and sends the given message to every user that has `elevated` set to `true`.
+    ///
+    /// # Arguments
+    ///
+    /// * `room` - a string slice with the name of the room where the message has to be send
+    /// * `message` - a string slice that holds the message to be send
+    fn send_message_all_elevated(&self, room: &str, message: &str) {
+        if let Some(room) = self.rooms.get(room) {
+            let sessions = &room.connected;
+            for (id, user) in sessions {
+                if user.elevated {
+                    if let Some(addr) = self.sessions.get(id) {
+                        let _ = addr.do_send(Message(message.to_owned()));
+                    }
+                }
+            }
+        } else {
+            println!("No room '{}' found", room);
+        }
+    }
+
+    /// send a message to all non-elevated users in a room
+    ///
+    /// This function loops threw all users in the given room and sends the given message to every user that has `elevated` set to `false`.
+    ///
+    /// # Arguments
+    ///
+    /// * `room` - a string slice with the name of the room where the message has to be send
+    /// * `message` - a string slice that holds the message to be send
+    fn send_message_all_not_elevated(&self, room: &str, message: &str) {
+        if let Some(room) = self.rooms.get(room) {
+            let sessions = &room.connected;
+            for (id, user) in sessions {
+                if !user.elevated {
+                    if let Some(addr) = self.sessions.get(id) {
+                        let _ = addr.do_send(Message(message.to_owned()));
+                    }
                 }
             }
         } else {
@@ -625,21 +694,28 @@ impl Handler<PollVoteHelper> for WebSocketServer {
 
         // clone later needed values
         let poll_option_title = vote.poll_title.clone();
-        let room_name = vote.room_name.clone();
 
         // add vote to poll
         poll.votes.insert(vote.owner_id, vote.option_title);
 
-        // TODO: send elevated users the voters-names
-
         // send poll option message to clients
-        let txt = json!({
+        let elevated_txt = json!({
+            "type": "vote",
+            "pollobject": poll.title,
+            "polloptionobject": poll_option_title,
+            "username": vote.owner_name,
+        })
+        .to_string();
+
+        let not_elevated_txt = json!({
             "type": "vote",
             "pollobject": poll.title,
             "polloptionobject": poll_option_title,
         })
         .to_string();
-        self.send_message_all(&room_name, &txt);
+
+        self.send_message_all_elevated(&vote.room_name, &elevated_txt);
+        self.send_message_all_not_elevated(&vote.room_name, &not_elevated_txt);
     }
 }
 
