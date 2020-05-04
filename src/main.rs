@@ -12,6 +12,8 @@ use serde_json::{Result as JsonResult, Value};
 use dotenv::dotenv;
 use std::env;
 
+mod messages;
+use messages::inbound::GetMessageType;
 mod server;
 
 /// How often heartbeat pings are sent
@@ -123,47 +125,85 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
             }
             ws::Message::Text(text) => {
                 let m = text.trim();
-                // we check for /sss type of messages
+                let msg: Result<messages::inbound::UsizeObject, _> = serde_json::from_str(m);
+                match msg {
+                    Ok(msg) => match msg.get_type() {
+                        Ok(messages::inbound::Types::Elevate) => {
+                            self.addr.do_send(server::Elevate {
+                                object: msg.object,
+                                owner_id: self.id,
+                                room_name: self.room.to_owned(),
+                            });
+                            return;
+                        }
+                        Ok(messages::inbound::Types::Recede) => {
+                            self.addr.do_send(server::Recede {
+                                object: msg.object,
+                                owner_id: self.id,
+                                room_name: self.room.to_owned(),
+                            });
+                            return;
+                        }
+                        Ok(_) | Err(_) => (),
+                    },
+                    Err(_) => (),
+                }
+
+                let msg: Result<messages::inbound::StringObject, _> = serde_json::from_str(m);
+                match msg {
+                    Ok(msg) => match msg.get_type() {
+                        Ok(messages::inbound::Types::Raise) => {
+                            self.addr.do_send(server::Raise {
+                                object: msg.object,
+                                owner_id: self.id,
+                                owner_name: self.name.clone(),
+                                room_name: self.room.to_owned(),
+                            });
+                            return;
+                        }
+                        Ok(messages::inbound::Types::Lower) => {
+                            self.addr.do_send(server::Lower {
+                                object: msg.object,
+                                owner_id: self.id,
+                                owner_name: self.name.clone(),
+                                room_name: self.room.to_owned(),
+                            });
+                            return;
+                        }
+                        Ok(_) | Err(_) => (),
+                    },
+                    Err(_) => (),
+                }
+
+                let msg: Result<messages::inbound::ArbitraryObject, _> = serde_json::from_str(m);
+                match msg {
+                    Ok(msg) => match msg.get_type() {
+                        Ok(messages::inbound::Types::Instant) => {
+                            self.addr.do_send(server::Instant {
+                                object: msg.object,
+                                owner_id: self.id,
+                                owner_name: self.name.clone(),
+                                room_name: self.room.to_owned(),
+                            });
+                            return;
+                        }
+                        Ok(_) | Err(_) => (),
+                    },
+                    Err(_) => (),
+                }
 
                 let testmsg: JsonResult<HashMap<String, Value>> = serde_json::from_str(m);
                 match testmsg {
                     Err(_) => println!("Malformatted messge detected: {}", text),
                     Ok(jsonmsg) => {
-                        println!("{:?}", jsonmsg);
-
                         let r#type = match jsonmsg["type"].as_str() {
                             Some(res) => res,
                             None => "NOT PARSEABLE",
                         };
 
                         match r#type {
-                            "raise" => match jsonmsg["raiseobject"].as_str() {
-                                Some(object) => self.addr.do_send(server::Raise {
-                                    object: object.to_string(),
-                                    owner_id: self.id,
-                                    owner_name: self.name.clone(),
-                                    room_name: self.room.to_owned(),
-                                }),
-                                None => (),
-                            },
-                            "lower" => match jsonmsg["lowerobject"].as_str() {
-                                Some(object) => self.addr.do_send(server::Lower {
-                                    object: object.to_string(),
-                                    owner_id: self.id,
-                                    owner_name: self.name.clone(),
-                                    room_name: self.room.to_owned(),
-                                }),
-                                None => (),
-                            },
-                            "instant" => {
-                                if jsonmsg.contains_key("instantobject") {
-                                    self.addr.do_send(server::Instant {
-                                        object: jsonmsg["instantobject"].clone(),
-                                        owner_id: self.id,
-                                        owner_name: self.name.clone(),
-                                        room_name: self.room.to_owned(),
-                                    });
-                                }
+                            "raise" | "lower" | "instant" | "elevate" | "recede" => {
+                                println!("[{}] Old delegating, DEPRECATED!", r#type)
                             }
                             "poll" => match jsonmsg["pollobject"].as_str() {
                                 Some(object) => self.addr.do_send(server::Poll {
@@ -215,22 +255,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                                     room_name: self.room.to_owned(),
                                 }),
                                 None => (),
-                            },
-                            "elevate" => match jsonmsg["object"].to_string().parse::<usize>() {
-                                Ok(object) => self.addr.do_send(server::Elevate {
-                                    object,
-                                    owner_id: self.id,
-                                    room_name: self.room.to_owned(),
-                                }),
-                                Err(_) => (),
-                            },
-                            "recede" => match jsonmsg["object"].to_string().parse::<usize>() {
-                                Ok(object) => self.addr.do_send(server::Recede {
-                                    object,
-                                    owner_id: self.id,
-                                    room_name: self.room.to_owned(),
-                                }),
-                                Err(_) => (),
                             },
                             _ => (),
                         }

@@ -74,21 +74,21 @@
         $('#raiseBtn').click(() => {
           let text = {
             type: 'raise',
-            raiseobject: $('#raiseobject').val(),
+            object: $('#raiseobject').val(),
           };
           conn.send(JSON.stringify(text));
         });
         $('#lowerBtn').click(() => {
           let text = {
             type: 'lower',
-            lowerobject: $('#lowerobject').val(),
+            object: $('#lowerobject').val(),
           };
           conn.send(JSON.stringify(text));
         });
         $('#instantBtn').click(() => {
           let text = {
             type: 'instant',
-            instantobject: $('#instantobject').val(),
+            object: $('#instantobject').val(),
           };
           conn.send(JSON.stringify(text));
         });
