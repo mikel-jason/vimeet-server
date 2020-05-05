@@ -729,6 +729,7 @@ impl Handler<PollOption> for WebSocketServer {
         // check if poll is closed
         if poll.closed {
             println!("Poll is already closed!");
+            return;
         }
 
         // check if poll_option already exists
@@ -788,6 +789,7 @@ impl Handler<PollVoteHelper> for WebSocketServer {
         // check if poll is closed
         if poll.closed {
             println!("Poll is already closed!");
+            return;
         }
 
         // check if poll_option exists
