@@ -311,6 +311,22 @@ impl WebSocketServer {
             println!("No room '{}' found", room);
         }
     }
+
+    fn send_error_user(
+        &self,
+        room: &str,
+        error_code: &str,
+        error_description: &str,
+        user_id: usize,
+    ) {
+        let error_message = json!(messages::outbound::Error {
+            r#type: messages::outbound::Types::Error,
+            object: error_code.to_string(),
+            description: error_description.to_string(),
+        })
+        .to_string();
+        self.send_message_user(room, &error_message, user_id);
+    }
 }
 
 /// Make actor from `WebSocketServer`
@@ -542,6 +558,12 @@ impl Handler<Raise> for WebSocketServer {
         check_raised.retain(|elem| elem.object == msg.object && elem.owner_id == msg.owner_id);
 
         if check_raised.len() > 0 {
+            self.send_error_user(
+                &msg.room_name,
+                "already_raised",
+                "Refusing to raise, already raised",
+                msg.owner_id,
+            );
             println!("Refusing to raise, already raised");
             return;
         }
@@ -585,6 +607,12 @@ impl Handler<Lower> for WebSocketServer {
         check_raised.retain(|elem| &elem.object == &msg.object && &elem.owner_id == &msg.owner_id);
 
         if check_raised.len() == 0 {
+            self.send_error_user(
+                &msg.room_name,
+                "not_raised",
+                "Refusing to lower, is not raised",
+                msg.owner_id,
+            );
             println!("Refusing to lower, is not raised");
             return;
         }
@@ -657,7 +685,13 @@ impl Handler<Poll> for WebSocketServer {
         });
 
         if user_is_elevated.len() == 0 {
-            println!("User does not have permission to create polls (not elevated)!");
+            self.send_error_user(
+                &poll.room_name,
+                "no_permission",
+                "You do not have permission to create polls (because you're not elevated)",
+                poll.owner_id,
+            );
+            println!("User does not have permission to create polls (not elevated)");
             return;
         }
 
@@ -666,7 +700,13 @@ impl Handler<Poll> for WebSocketServer {
         poll_exists.retain(|elem| &elem.title == &poll.title);
 
         if poll_exists.len() > 0 {
-            println!("Poll with that title already exists!");
+            self.send_error_user(
+                &poll.room_name,
+                "poll_already_exists",
+                "A poll with that title already exists",
+                poll.owner_id,
+            );
+            println!("A poll with that title already exists");
             return;
         }
 
@@ -704,7 +744,13 @@ impl Handler<PollOption> for WebSocketServer {
         });
 
         if user_is_elevated.len() == 0 {
-            println!("User does not have permission to add poll options (not elevated)!");
+            self.send_error_user(
+                &poll_option.room_name,
+                "no_permission",
+                "You do not have permission to add poll options (because you're not elevated)",
+                poll_option.owner_id,
+            );
+            println!("User does not have permission to add poll options (not elevated)");
             return;
         }
 
@@ -713,7 +759,13 @@ impl Handler<PollOption> for WebSocketServer {
         poll_exists.retain(|poll| poll.title == poll_option.poll_title);
 
         if poll_exists.len() == 0 {
-            println!("Poll with that title doesn't exist!");
+            self.send_error_user(
+                &poll_option.room_name,
+                "poll_does_not_exist",
+                "A poll with that title doesn't exist",
+                poll_option.owner_id,
+            );
+            println!("A poll with that title doesn't exist");
             return;
         }
 
@@ -727,7 +779,13 @@ impl Handler<PollOption> for WebSocketServer {
 
         // check if poll is closed
         if poll.closed {
-            println!("Poll is already closed!");
+            self.send_error_user(
+                &poll_option.room_name,
+                "poll_closed",
+                "Sorry, the poll is already closed",
+                poll_option.owner_id,
+            );
+            println!("Poll is already closed");
             return;
         }
 
@@ -737,7 +795,13 @@ impl Handler<PollOption> for WebSocketServer {
             .retain(|existing_poll_option| existing_poll_option.title == poll_option.title);
 
         if poll_option_exists.len() > 0 {
-            println!("Poll-Option with that title in this poll does already exist!");
+            self.send_error_user(
+                &poll_option.room_name,
+                "poll_option_already_exists",
+                "A poll-option with that title in this poll does already exist",
+                poll_option.owner_id,
+            );
+            println!("A poll-option with that title in this poll does already exist");
             return;
         }
 
@@ -773,7 +837,13 @@ impl Handler<PollVoteHelper> for WebSocketServer {
         poll_exists.retain(|elem| &elem.title == &vote.poll_title);
 
         if poll_exists.len() == 0 {
-            println!("Poll with that title doesn't exist!");
+            self.send_error_user(
+                &vote.room_name,
+                "poll_does_not_exist",
+                "A poll with that title doesn't exist",
+                vote.owner_id,
+            );
+            println!("A poll with that title doesn't exist");
             return;
         }
 
@@ -787,6 +857,12 @@ impl Handler<PollVoteHelper> for WebSocketServer {
 
         // check if poll is closed
         if poll.closed {
+            self.send_error_user(
+                &vote.room_name,
+                "poll_closed",
+                "Sorry, the poll is already closed",
+                vote.owner_id,
+            );
             println!("Poll is already closed!");
             return;
         }
@@ -797,7 +873,13 @@ impl Handler<PollVoteHelper> for WebSocketServer {
             .retain(|existing_poll_option| existing_poll_option.title == vote.option_title);
 
         if poll_option_exists.len() == 0 {
-            println!("Poll-Option with that title in this poll doesn't exist!");
+            self.send_error_user(
+                &vote.room_name,
+                "poll_option_does_not_exist",
+                "A poll-option with that title in this poll doesn't exist",
+                vote.owner_id,
+            );
+            println!("Poll-Option with that title in this poll doesn't exist");
             return;
         }
 
@@ -889,6 +971,12 @@ impl Handler<PollCloseHelper> for WebSocketServer {
         poll_exists.retain(|elem| &elem.title == &close.poll_title);
 
         if poll_exists.len() == 0 {
+            self.send_error_user(
+                &close.room_name,
+                "poll_does_not_exist",
+                "A poll with that title doesn't exist",
+                close.sender_id,
+            );
             println!("Poll with that title doesn't exist!");
             return;
         }
@@ -903,7 +991,14 @@ impl Handler<PollCloseHelper> for WebSocketServer {
 
         // check if poll is closed
         if poll.closed {
+            self.send_error_user(
+                &close.room_name,
+                "poll_closed",
+                "Sorry, the poll is already closed",
+                close.sender_id,
+            );
             println!("Poll is already closed!");
+            return;
         }
 
         // close poll
