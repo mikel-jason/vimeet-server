@@ -312,6 +312,16 @@ impl WebSocketServer {
         }
     }
 
+    /// send an error message to a specific users in a room
+    ///
+    /// This function loops threw all users in the given room and sends the given message to every user that has `elevated` set to `false`.
+    ///
+    /// # Arguments
+    ///
+    /// * `room` - a string slice with the name of the room where the message has to be send
+    /// * `error_code` - a string slice with a short error name
+    /// * `error_description` - a string slice with a longer description what went wrong
+    /// * `user_id` - the user id of the user that should receive the message
     fn send_error_user(
         &self,
         room: &str,
