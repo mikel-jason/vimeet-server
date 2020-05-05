@@ -381,7 +381,7 @@ impl Handler<Disconnect> for WebSocketServer {
                                 })
                                 .to_string();
                                 let not_elevated_txt = json!({
-                                    "type": "vote",
+                                    "type": "deletevote",
                                     "pollobject": poll.title,
                                     "polloptionobject": poll_option_title,
                                 })
