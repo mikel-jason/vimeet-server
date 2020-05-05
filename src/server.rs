@@ -756,7 +756,6 @@ impl Handler<PollVoteHelper> for WebSocketServer {
             .iter()
             .position(|poll| poll.title == vote.poll_title)
             .unwrap();
-
         let poll = room.polls.get_mut(poll_index).unwrap();
 
         // check if poll is closed
