@@ -125,34 +125,6 @@ pub mod inbound {
         }
     }
 
-    /// Inbound message skeleton: String object
-    ///
-    /// * `type` - Message type, see [Types](#struct.Types)
-    /// * `object` - A `String` value
-    #[derive(Serialize, Deserialize, Clone, Debug)]
-    pub struct StringObject {
-        pub r#type: String,
-        pub object: String,
-    }
-
-    impl GetMessageType for StringObject {
-        /// Get message type or error
-        ///
-        /// # Example
-        /// ```
-        /// let msg: Result<StringObject, _> = serde_json::from_str(m);
-        ///     match msg {
-        ///         Ok(msg) => match msg.get_type() {
-        ///             Ok(Types::Raised) => ()
-        ///             _ => )_
-        ///         }
-        ///     }
-        /// ```
-        fn get_type(&self) -> Result<Types, InvalidMessageType> {
-            Types::from_str(self.r#type.as_str())
-        }
-    }
-
     /// Inbound message skeleton: Vec objects
     ///
     /// * `type` - Message type, see [Types](#struct.Types)

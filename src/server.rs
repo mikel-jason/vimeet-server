@@ -4,7 +4,7 @@
 
 use actix::prelude::*;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{json, Value as Arbitrary};
 use std::collections::HashMap;
 
 /// web socket server sends this messages to session
@@ -136,7 +136,7 @@ pub struct Poll {
 #[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
 pub struct Raise {
-    pub object: String,
+    pub object: Arbitrary,
     pub owner_id: usize,
     pub owner_name: String,
     pub room_name: String,
@@ -145,7 +145,7 @@ pub struct Raise {
 #[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
 pub struct Raised {
-    pub object: String,
+    pub object: Arbitrary,
     owner_id: usize,
     owner_name: String,
 }
@@ -159,7 +159,7 @@ impl std::cmp::PartialEq for Raised {
 #[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
 pub struct Lower {
-    pub object: String,
+    pub object: Arbitrary,
     pub owner_id: usize,
     pub owner_name: String,
     pub room_name: String,
@@ -168,7 +168,7 @@ pub struct Lower {
 #[derive(Message, Serialize, Clone, Debug)]
 #[rtype(result = "()")]
 pub struct Instant {
-    pub object: Value,
+    pub object: Arbitrary,
     pub owner_id: usize,
     pub owner_name: String,
     pub room_name: String,
@@ -566,7 +566,7 @@ impl Handler<Lower> for WebSocketServer {
         }
 
         let raised_equivalent = Raised {
-            object: equiv_clone.object,
+            object: json!(equiv_clone.object),
             owner_id: equiv_clone.owner_id,
             owner_name: equiv_clone.owner_name,
         };

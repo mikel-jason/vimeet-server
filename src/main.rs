@@ -7,7 +7,7 @@ use actix_files as fs;
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
 
-use serde_json::{Result as JsonResult, Value};
+use serde_json::{Result as JsonResult, Value as Arbitrary};
 
 use dotenv::dotenv;
 use std::env;
@@ -216,10 +216,18 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                     },
                     Err(_) => (),
                 }
-
-                let msg: Result<messages::inbound::StringObject, _> = serde_json::from_str(m);
+                let msg: Result<messages::inbound::ArbitraryObject, _> = serde_json::from_str(m);
                 match msg {
                     Ok(msg) => match msg.get_type() {
+                        Ok(messages::inbound::Types::Instant) => {
+                            self.addr.do_send(server::Instant {
+                                object: msg.object,
+                                owner_id: self.id,
+                                owner_name: self.name.clone(),
+                                room_name: self.room.to_owned(),
+                            });
+                            return;
+                        }
                         Ok(messages::inbound::Types::Raise) => {
                             self.addr.do_send(server::Raise {
                                 object: msg.object,
@@ -243,24 +251,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                     Err(_) => (),
                 }
 
-                let msg: Result<messages::inbound::ArbitraryObject, _> = serde_json::from_str(m);
-                match msg {
-                    Ok(msg) => match msg.get_type() {
-                        Ok(messages::inbound::Types::Instant) => {
-                            self.addr.do_send(server::Instant {
-                                object: msg.object,
-                                owner_id: self.id,
-                                owner_name: self.name.clone(),
-                                room_name: self.room.to_owned(),
-                            });
-                            return;
-                        }
-                        Ok(_) | Err(_) => (),
-                    },
-                    Err(_) => (),
-                }
-
-                let testmsg: JsonResult<HashMap<String, Value>> = serde_json::from_str(m);
+                let testmsg: JsonResult<HashMap<String, Arbitrary>> = serde_json::from_str(m);
                 match testmsg {
                     Err(_) => println!("Malformatted messge detected: {}", text),
                     Ok(jsonmsg) => {
