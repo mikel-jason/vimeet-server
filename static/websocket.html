@@ -93,35 +93,43 @@
           conn.send(JSON.stringify(text));
         });
         $('#pollBtn').click(() => {
+          let pollobjects = {};
+          pollobjects['poll_title'] = $('#polltitle').val();
           let text = {
             type: 'poll',
-            pollobject: $('#polltitle').val(),
+            object: pollobjects,
           };
           console.log(text);
           conn.send(JSON.stringify(text));
         });
         $('#polloptionBtn').click(() => {
+          let pollobjects = {};
+          pollobjects['poll_title'] = $('#polloptionpolltitle').val();
+          pollobjects['poll_option_title'] = $('#polloptiontitle').val();
           let text = {
             type: 'polloption',
-            polloptionobject: $('#polloptiontitle').val(),
-            pollobject: $('#polloptionpolltitle').val(),
+            object: pollobjects,
           };
           console.log(text);
           conn.send(JSON.stringify(text));
         });
         $('#voteBtn').click(() => {
+          let pollobjects = {};
+          pollobjects['poll_title'] = $('#votepolltitle').val();
+          pollobjects['poll_option_title'] = $('#voteoptiontitle').val();
           let text = {
             type: 'vote',
-            polloptionobject: $('#voteoptiontitle').val(),
-            pollobject: $('#votepolltitle').val(),
+            object: pollobjects,
           };
           console.log(text);
           conn.send(JSON.stringify(text));
         });
         $('#closePollBtn').click(() => {
+          let pollobjects = {};
+          pollobjects['poll_title'] = $('#closepolltitle').val();
           let text = {
             type: 'closepoll',
-            pollobject: $('#closepolltitle').val(),
+            object: pollobjects,
           };
           console.log(text);
           conn.send(JSON.stringify(text));

@@ -1,6 +1,7 @@
 pub mod inbound {
     use serde::{Deserialize, Serialize};
     use serde_json::Value as Arbitrary;
+    use std::collections::HashMap;
     use std::str::FromStr;
     use std::{error, fmt};
 
@@ -40,6 +41,10 @@ pub mod inbound {
         Instant,
         Elevate,
         Recede,
+        Poll,
+        PollOption,
+        Vote,
+        PollClose,
     }
 
     impl FromStr for Types {
@@ -55,6 +60,10 @@ pub mod inbound {
                 "instant" => Ok(Types::Instant),
                 "elevate" => Ok(Types::Elevate),
                 "recede" => Ok(Types::Recede),
+                "poll" => Ok(Types::Poll),
+                "polloption" => Ok(Types::PollOption),
+                "vote" => Ok(Types::Vote),
+                "closepoll" => Ok(Types::PollClose),
                 _ => Err(InvalidMessageType {}),
             }
         }
@@ -127,6 +136,35 @@ pub mod inbound {
     }
 
     impl GetMessageType for StringObject {
+        /// Get message type or error
+        ///
+        /// # Example
+        /// ```
+        /// let msg: Result<StringObject, _> = serde_json::from_str(m);
+        ///     match msg {
+        ///         Ok(msg) => match msg.get_type() {
+        ///             Ok(Types::Raised) => ()
+        ///             _ => )_
+        ///         }
+        ///     }
+        /// ```
+        fn get_type(&self) -> Result<Types, InvalidMessageType> {
+            Types::from_str(self.r#type.as_str())
+        }
+    }
+
+    /// Inbound message skeleton: Vec objects
+    ///
+    /// * `type` - Message type, see [Types](#struct.Types)
+    /// * `pollobject` - A `String` value
+    /// * `polloptionobject` - A `String` value
+    #[derive(Serialize, Deserialize, Clone, Debug)]
+    pub struct HashMapObject {
+        pub r#type: String,
+        pub object: HashMap<String, String>,
+    }
+
+    impl GetMessageType for HashMapObject {
         /// Get message type or error
         ///
         /// # Example

@@ -114,7 +114,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
             Ok(msg) => msg,
         };
 
-        // println!("WEBSOCKET MESSAGE: {:?}", msg);
         match msg {
             ws::Message::Ping(msg) => {
                 self.hb = Instant::now();
@@ -125,6 +124,75 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
             }
             ws::Message::Text(text) => {
                 let m = text.trim();
+                let msg: Result<messages::inbound::HashMapObject, _> = serde_json::from_str(m);
+                match msg {
+                    Ok(msg) => match msg.get_type() {
+                        Ok(messages::inbound::Types::Poll) => match msg.object.get("poll_title") {
+                            Some(poll_title) => {
+                                self.addr.do_send(server::Poll {
+                                    title: poll_title.to_string(),
+                                    owner_id: self.id,
+                                    owner_name: self.name.clone(),
+                                    room_name: self.room.to_owned(),
+                                    options: Vec::new(),
+                                    votes: HashMap::new(),
+                                    closed: false,
+                                });
+                                return;
+                            }
+                            _ => (),
+                        },
+                        Ok(messages::inbound::Types::PollOption) => match (
+                            msg.object.get("poll_title"),
+                            msg.object.get("poll_option_title"),
+                        ) {
+                            (Some(poll_title), Some(poll_option_title)) => {
+                                self.addr.do_send(server::PollOption {
+                                    poll_title: poll_title.to_string(),
+                                    title: poll_option_title.to_string(),
+                                    owner_id: self.id,
+                                    owner_name: self.name.clone(),
+                                    room_name: self.room.to_owned(),
+                                });
+                                return;
+                            }
+                            (_, _) => (),
+                        },
+                        Ok(messages::inbound::Types::Vote) => match (
+                            msg.object.get("poll_title"),
+                            msg.object.get("poll_option_title"),
+                        ) {
+                            (Some(poll_title), Some(poll_option_title)) => {
+                                self.addr.do_send(server::PollVoteHelper {
+                                    owner_id: self.id,
+                                    owner_name: self.name.clone(),
+                                    room_name: self.room.to_owned(),
+                                    poll_title: poll_title.to_string(),
+                                    option_title: poll_option_title.to_string(),
+                                });
+                                return;
+                            }
+                            (_, _) => (),
+                        },
+                        Ok(messages::inbound::Types::PollClose) => {
+                            match msg.object.get("poll_title") {
+                                Some(poll_title) => {
+                                    self.addr.do_send(server::PollCloseHelper {
+                                        poll_title: poll_title.to_string(),
+                                        sender_id: self.id,
+                                        sender_name: self.name.clone(),
+                                        room_name: self.room.to_owned(),
+                                    });
+                                    return;
+                                }
+                                _ => (),
+                            }
+                        }
+                        Ok(_) | Err(_) => (),
+                    },
+                    Err(_) => (),
+                }
+
                 let msg: Result<messages::inbound::UsizeObject, _> = serde_json::from_str(m);
                 match msg {
                     Ok(msg) => match msg.get_type() {
@@ -202,60 +270,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                         };
 
                         match r#type {
-                            "raise" | "lower" | "instant" | "elevate" | "recede" => {
+                            "raise" | "lower" | "instant" | "elevate" | "recede" | "poll"
+                            | "polloption" | "vote" | "closepoll" => {
                                 println!("[{}] Old delegating, DEPRECATED!", r#type)
                             }
-                            "poll" => match jsonmsg["pollobject"].as_str() {
-                                Some(object) => self.addr.do_send(server::Poll {
-                                    title: object.to_string(),
-                                    owner_id: self.id,
-                                    owner_name: self.name.clone(),
-                                    room_name: self.room.to_owned(),
-                                    options: Vec::new(),
-                                    votes: HashMap::new(),
-                                    closed: false,
-                                }),
-                                None => (),
-                            },
-                            "polloption" => match (
-                                jsonmsg["polloptionobject"].as_str(),
-                                jsonmsg["pollobject"].as_str(),
-                            ) {
-                                (Some(option), Some(poll)) => {
-                                    self.addr.do_send(server::PollOption {
-                                        poll_title: poll.to_string(),
-                                        title: option.to_string(),
-                                        owner_id: self.id,
-                                        owner_name: self.name.clone(),
-                                        room_name: self.room.to_owned(),
-                                    })
-                                }
-                                (_, _) => (),
-                            },
-                            "vote" => match (
-                                jsonmsg["polloptionobject"].as_str(),
-                                jsonmsg["pollobject"].as_str(),
-                            ) {
-                                (Some(option), Some(poll)) => {
-                                    self.addr.do_send(server::PollVoteHelper {
-                                        owner_id: self.id,
-                                        owner_name: self.name.clone(),
-                                        room_name: self.room.to_owned(),
-                                        poll_title: poll.to_string(),
-                                        option_title: option.to_string(),
-                                    })
-                                }
-                                (_, _) => (),
-                            },
-                            "closepoll" => match jsonmsg["pollobject"].as_str() {
-                                Some(object) => self.addr.do_send(server::PollCloseHelper {
-                                    poll_title: object.to_string(),
-                                    sender_id: self.id,
-                                    sender_name: self.name.clone(),
-                                    room_name: self.room.to_owned(),
-                                }),
-                                None => (),
-                            },
                             _ => (),
                         }
                     }
