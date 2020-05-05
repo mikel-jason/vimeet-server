@@ -247,6 +247,37 @@ pub mod outbound {
         //     "type": "receded",
         //     "object": msg.object,
         // }
+        VoteDelete,
+        // {
+        //      "type": "deletevote",
+        //      "pollobject": poll.title,
+        //      "polloptionobject": poll_option_title,
+        //      "userid": user_id, // or 0 in case of not elevated users
+        // }
+        Poll,
+        // {
+        //     "type": "poll",
+        //     "object": "amazing poll title",
+        // }
+        PollOption,
+        // {
+        //     "type": "poll",
+        //     "pollobject": "amazing poll title",
+        //     "polloptionobject": "amazing poll-option title",
+        // }
+        Vote,
+        // {
+        //      "type": "vote",
+        //      "pollobject": poll_title,
+        //      "polloptionobject": poll_option_title,
+        //      "username": vote.owner_name, // or 0 in case of not elevated user
+        //      "userid": vote.owner_id, // or "" in case of not elevated user
+        // }
+        PollClose,
+        // {
+        //      "type": "closepoll",
+        //      "pollobject": poll.title,
+        // }
     }
 
     /// Message skeleton containing the current state of a room
@@ -294,5 +325,67 @@ pub mod outbound {
     pub struct PermissionChange {
         pub r#type: Types,
         pub object: usize,
+    }
+
+    /// Message skeleton to delete a user's vote
+    /// # Parameters
+    /// * `type` - Message type. Exprected: VoteDelete
+    /// * `pollobject` - Title of the poll
+    /// * `polloptionobject` - Title of the poll-option
+    /// * `userid` - ID of the user (or 0 is the receiver is not elevated)
+    #[derive(Serialize)]
+    pub struct VoteDelete {
+        pub r#type: Types,
+        pub pollobject: String,
+        pub polloptionobject: String,
+        pub userid: usize,
+    }
+
+    // Message skeleton to send a poll
+    /// # Parameters
+    /// * `type` - Message type. Exprected: Poll
+    /// * `object` - Title of the poll
+    #[derive(Serialize)]
+    pub struct Poll {
+        pub r#type: Types,
+        pub object: String,
+    }
+
+    // Message skeleton to send a poll-option
+    /// # Parameters
+    /// * `type` - Message type. Exprected: PollOption
+    /// * `pollobject` - Title of the poll
+    /// * `polloptionobject` - Title of the poll-option
+    #[derive(Serialize)]
+    pub struct PollOption {
+        pub r#type: Types,
+        pub pollobject: String,
+        pub polloptionobject: String,
+    }
+
+    // Message skeleton to send a vote
+    /// # Parameters
+    /// * `type` - Message type. Exprected: PollOption
+    /// * `pollobject` - Title of the poll
+    /// * `polloptionobject` - Title of the poll-option
+    /// * `username` - Name of the voting-user (or "" if the receiver is not elevated)
+    /// * `userid` - ID of the voting-user (or 0 if the receiver is not elevated)
+    #[derive(Serialize)]
+    pub struct Vote {
+        pub r#type: Types,
+        pub pollobject: String,
+        pub polloptionobject: String,
+        pub username: String,
+        pub userid: usize,
+    }
+
+    // Message skeleton to close a poll
+    /// # Parameters
+    /// * `type` - Message type. Exprected: Poll
+    /// * `object` - Title of the poll
+    #[derive(Serialize)]
+    pub struct PollClose {
+        pub r#type: Types,
+        pub object: String,
     }
 }
