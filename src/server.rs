@@ -7,6 +7,8 @@ use serde::Serialize;
 use serde_json::{json, Value as Arbitrary};
 use std::collections::HashMap;
 
+use crate::messages;
+
 /// web socket server sends this messages to session
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -55,7 +57,7 @@ pub struct Room {
 }
 
 #[derive(Clone, Serialize)]
-struct User {
+pub struct User {
     name: String,
     elevated: bool,
 }
@@ -375,11 +377,10 @@ impl Handler<Disconnect> for WebSocketServer {
                 }
             }
 
-            // send message to other users
-            let txt = json!({
-                "type": "all",
-                "raised": room.raised,
-                "joined": room.connected,
+            let txt = json!(messages::outbound::All {
+                r#type: messages::outbound::Types::All,
+                raised: room.raised,
+                joined: room.connected,
             })
             .to_string();
             self.send_message_all(&room_name, txt.as_str());
@@ -430,16 +431,15 @@ impl Handler<Join> for WebSocketServer {
             },
         );
 
-        let msg = json!({
-            "type": "joined",
-            "object" : {
-                "name": user_name,
-                "id": user_id,
-                "elevated": elevated
+        let msg = json!(messages::outbound::User {
+            r#type: messages::outbound::Types::Joined,
+            object: messages::outbound::UserFormat {
+                id: user_id,
+                name: user_name,
+                elevated
             }
         })
         .to_string();
-
         self.send_message_skip_user(&room_name, msg.as_str(), user_id);
 
         let room = self
@@ -447,18 +447,19 @@ impl Handler<Join> for WebSocketServer {
             .entry(room_name.clone())
             .or_insert(Room::default());
 
-        let msg = json!({
-            "type": "all",
-            "raised": room.raised,
-            "joined": room.connected,
+        let msg = json!(messages::outbound::All {
+            r#type: messages::outbound::Types::All,
+            raised: room.raised.clone(),
+            joined: room.connected.clone()
         })
         .to_string();
 
         self.send_message_user(&room_name, msg.as_str(), user_id);
 
-        let msg = json!({
-            "type": "self",
-            "id": user_id,
+        let msg = json!(messages::outbound::PermissionChange {
+            r#type: messages::outbound::Types::SelfStatus,
+            object: user_id,
+            elevated
         })
         .to_string();
 
@@ -529,12 +530,12 @@ impl Handler<Raise> for WebSocketServer {
             .is_elevated(&msg.owner_id)
             .unwrap_or(false);
 
-        let txt = json!({
-            "type": "raised",
-            "owner_id": msg.owner_id,
-            "owner_name": msg.owner_name,
-            "object": &msg.object,
-            "elevated": elevated,
+        let txt = json!(messages::outbound::OwnedObject {
+            r#type: messages::outbound::Types::Raised,
+            owner_id: msg.owner_id,
+            owner_name: msg.owner_name.clone(),
+            object: msg.object.clone(),
+            elevated: elevated,
         });
         self.send_message_all(msg.room_name.as_str(), &txt.to_string());
 
@@ -580,14 +581,15 @@ impl Handler<Lower> for WebSocketServer {
             .is_elevated(&msg.owner_id)
             .unwrap_or(false);
 
-        let txt = json!({
-            "type": "lower",
-            "owner_id": msg.owner_id,
-            "owner_name": msg.owner_name,
-            "object": msg.object,
-            "elevated": elevated,
-        });
-        self.send_message_all(&msg.room_name, &txt.to_string());
+        let txt = json!(messages::outbound::OwnedObject {
+            r#type: messages::outbound::Types::Lower,
+            owner_id: msg.owner_id,
+            owner_name: msg.owner_name,
+            object: msg.object,
+            elevated: elevated,
+        })
+        .to_string();
+        self.send_message_all(&msg.room_name, &txt);
     }
 }
 
@@ -602,14 +604,15 @@ impl Handler<Instant> for WebSocketServer {
             .is_elevated(&msg.owner_id)
             .unwrap_or(false);
 
-        let txt = json!({
-            "type": "instant",
-            "owner_id": msg.owner_id,
-            "owner_name": msg.owner_name,
-            "object": msg.object,
-            "elevated": elevated,
+        let txt = json!(messages::outbound::OwnedObject {
+            r#type: messages::outbound::Types::Instant,
+            owner_id: msg.owner_id,
+            owner_name: msg.owner_name,
+            object: msg.object,
+            elevated: elevated,
         })
         .to_string();
+
         self.send_message_all(&msg.room_name, &txt);
     }
 }
@@ -969,9 +972,10 @@ impl Handler<Elevate> for WebSocketServer {
         match self.process_priviliges(&msg.room_name, msg.owner_id, msg.object, true) {
             Err(_) => (),
             Ok(_) => {
-                let txt = json!({
-                    "type": "elevated",
-                    "object": msg.object,
+                let txt = json!(messages::outbound::PermissionChange {
+                    r#type: messages::outbound::Types::Elevated,
+                    object: msg.object,
+                    elevated: true
                 })
                 .to_string();
                 self.send_message_all(&msg.room_name, &txt);
@@ -987,9 +991,10 @@ impl Handler<Recede> for WebSocketServer {
         match self.process_priviliges(&msg.room_name, msg.owner_id, msg.object, false) {
             Err(_) => (),
             Ok(_) => {
-                let txt = json!({
-                    "type": "receded",
-                    "object": msg.object,
+                let txt = json!(messages::outbound::PermissionChange {
+                    r#type: messages::outbound::Types::Receded,
+                    object: msg.object,
+                    elevated: false
                 })
                 .to_string();
                 self.send_message_all(&msg.room_name, &txt);
