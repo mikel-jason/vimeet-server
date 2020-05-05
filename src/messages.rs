@@ -335,11 +335,13 @@ pub mod outbound {
     /// Message skeleton to send an error
     /// # Parameters
     /// * `type` - Message type. Exprected: Error
-    /// * `object` - Target user's ID
+    /// * `object` - Error Code
+    /// * `description` - Error Description
     #[derive(Serialize)]
     pub struct Error {
         pub r#type: Types,
         pub object: String,
+        pub description: String,
     }
 
     /// Message skeleton to delete a user's vote
