@@ -247,6 +247,11 @@ pub mod outbound {
         //     "type": "receded",
         //     "object": msg.object,
         // }
+        Error,
+        // {
+        //     "type": "error",
+        //     "object": "error description",
+        // }
         VoteDelete,
         // {
         //      "type": "deletevote",
@@ -327,6 +332,16 @@ pub mod outbound {
         pub object: usize,
     }
 
+    /// Message skeleton to send an error
+    /// # Parameters
+    /// * `type` - Message type. Exprected: Error
+    /// * `object` - Target user's ID
+    #[derive(Serialize)]
+    pub struct Error {
+        pub r#type: Types,
+        pub object: String,
+    }
+
     /// Message skeleton to delete a user's vote
     /// # Parameters
     /// * `type` - Message type. Exprected: VoteDelete
@@ -365,7 +380,7 @@ pub mod outbound {
 
     // Message skeleton to send a vote
     /// # Parameters
-    /// * `type` - Message type. Exprected: PollOption
+    /// * `type` - Message type. Exprected: Vote
     /// * `pollobject` - Title of the poll
     /// * `polloptionobject` - Title of the poll-option
     /// * `username` - Name of the voting-user (or "" if the receiver is not elevated)
@@ -381,7 +396,7 @@ pub mod outbound {
 
     // Message skeleton to close a poll
     /// # Parameters
-    /// * `type` - Message type. Exprected: Poll
+    /// * `type` - Message type. Exprected: PollClose
     /// * `object` - Title of the poll
     #[derive(Serialize)]
     pub struct PollClose {
