@@ -119,9 +119,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                 self.hb = Instant::now();
                 ctx.pong(&msg);
             }
+
             ws::Message::Pong(_) => {
                 self.hb = Instant::now();
             }
+
             ws::Message::Text(text) => {
                 let m = text.trim();
                 let msg: Result<messages::inbound::HashMapObject, _> = serde_json::from_str(m);
@@ -216,6 +218,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                     },
                     Err(_) => (),
                 }
+
                 let msg: Result<messages::inbound::ArbitraryObject, _> = serde_json::from_str(m);
                 match msg {
                     Ok(msg) => match msg.get_type() {
@@ -270,13 +273,16 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsWebSocketSessio
                     }
                 };
             }
+
             ws::Message::Binary(_) => println!("Unexpected binary"),
             ws::Message::Close(_) => {
                 ctx.stop();
             }
+
             ws::Message::Continuation(_) => {
                 ctx.stop();
             }
+
             ws::Message::Nop => (),
         }
     }
