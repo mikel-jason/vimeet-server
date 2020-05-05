@@ -239,7 +239,7 @@ impl WebSocketServer {
     ///
     /// * `room` - a string slice with the name of the room where the message has to be send
     /// * `message` - a string slice that holds the message to be send
-    fn send_message_all(&self, room: &str, message: &str) {
+    fn send_message_all(&mut self, room: &str, message: &str) {
         self.send_message_skip_user(room, message, 0);
     }
 
@@ -325,65 +325,86 @@ impl Handler<Disconnect> for WebSocketServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        let mut rooms_leaving: HashMap<String, Room> = HashMap::new();
+        let mut rooms_leaving: Vec<String> = Vec::new();
 
         // remove address
         if self.sessions.remove(&msg.id).is_some() {
             // remove session from rooms
-            for (name, room) in &mut self.rooms {
+            for (room_name, room) in &mut self.rooms {
                 if room.connected.remove_entry(&msg.id).is_some() {
-                    rooms_leaving.insert(name.to_owned(), room.to_owned());
+                    rooms_leaving.push(room_name.to_owned());
+                    room.remove_user(&msg.id);
                     break;
                 }
             }
-        }
 
-        // clear rooms
-        for (room_name, mut room) in rooms_leaving {
-            // get username
-            let user_id = msg.id;
+            for room_name in rooms_leaving {
+                let room = self
+                    .rooms
+                    .entry(room_name.clone())
+                    .or_insert(Room::default());
 
-            // remove user from room
-            room.remove_user(&user_id);
+                let txt = json!(messages::outbound::All {
+                    r#type: messages::outbound::Types::All,
+                    raised: room.raised.clone(),
+                    joined: room.connected.clone(),
+                })
+                .to_string();
 
-            // remove user votes from open polls
-            for mut poll in room.polls.clone() {
-                if !poll.closed {
-                    for (id, poll_option_title) in poll.votes.clone() {
-                        if id == msg.id {
-                            // delete vote
-                            poll.votes.remove_entry(&id);
+                self.send_message_all(&room_name, txt.as_str());
 
-                            // send poll option message to clients
-                            let elevated_txt = json!({
-                                "type": "deletevote",
-                                "pollobject": poll.title,
-                                "polloptionobject": poll_option_title,
-                                "userid": user_id,
-                            })
-                            .to_string();
+                let room = self
+                    .rooms
+                    .entry(room_name.clone())
+                    .or_insert(Room::default());
 
-                            let not_elevated_txt = json!({
-                                "type": "vote",
-                                "pollobject": poll.title,
-                                "polloptionobject": poll_option_title,
-                            })
-                            .to_string();
+                // get username
+                let user_id = msg.id;
 
-                            self.send_message_all_elevated(&room_name, &elevated_txt);
-                            self.send_message_all_not_elevated(&room_name, &not_elevated_txt);
+                let mut messages_to_send_to_elevated: Vec<String> = Vec::new();
+                let mut messages_to_send_to_not_elevated: Vec<String> = Vec::new();
+
+                for i in 0..room.polls.clone().len() {
+                    let poll = room.polls[i].clone();
+                    if !poll.closed {
+                        for (id, poll_option_title) in poll.votes {
+                            if id == msg.id {
+                                // delete vote
+                                room.polls[i].votes.remove(&id);
+
+                                // send poll option message to clients
+                                let elevated_txt = json!({
+                                    "type": "deletevote",
+                                    "pollobject": poll.title,
+                                    "polloptionobject": poll_option_title,
+                                    "userid": user_id,
+                                })
+                                .to_string();
+                                let not_elevated_txt = json!({
+                                    "type": "vote",
+                                    "pollobject": poll.title,
+                                    "polloptionobject": poll_option_title,
+                                })
+                                .to_string();
+
+                                messages_to_send_to_elevated.push(elevated_txt);
+                                messages_to_send_to_not_elevated.push(not_elevated_txt);
+                            }
                         }
                     }
                 }
-            }
 
-            let txt = json!(messages::outbound::All {
-                r#type: messages::outbound::Types::All,
-                raised: room.raised,
-                joined: room.connected,
-            })
-            .to_string();
-            self.send_message_all(&room_name, txt.as_str());
+                for message_to_send_to_elevated in messages_to_send_to_elevated {
+                    self.send_message_all_elevated(&room_name, &message_to_send_to_elevated);
+                }
+
+                for message_to_send_to_not_elevated in messages_to_send_to_not_elevated {
+                    self.send_message_all_not_elevated(
+                        &room_name,
+                        &message_to_send_to_not_elevated,
+                    );
+                }
+            }
         }
     }
 }
