@@ -202,6 +202,11 @@ pub mod outbound {
         Instant,
         Elevated,
         Receded,
+        VoteDelete,
+        Poll,
+        PollOption,
+        Vote,
+        PollClose,
     }
 
     /// Message skeleton containing the current state of a room
@@ -252,5 +257,67 @@ pub mod outbound {
         pub r#type: Types,
         pub object: usize,
         pub elevated: bool,
+    }
+
+    /// Message skeleton to delete a user's vote
+    /// # Parameters
+    /// * `type` - Message type. Exprected: VoteDelete
+    /// * `pollobject` - Title of the poll
+    /// * `polloptionobject` - Title of the poll-option
+    /// * `userid` - ID of the user (or 0 is the receiver is not elevated)
+    #[derive(Serialize)]
+    pub struct VoteDelete {
+        pub r#type: Types,
+        pub pollobject: String,
+        pub polloptionobject: String,
+        pub userid: usize,
+    }
+
+    // Message skeleton to send a poll
+    /// # Parameters
+    /// * `type` - Message type. Exprected: Poll
+    /// * `object` - Title of the poll
+    #[derive(Serialize)]
+    pub struct Poll {
+        pub r#type: Types,
+        pub object: String,
+    }
+
+    // Message skeleton to send a poll-option
+    /// # Parameters
+    /// * `type` - Message type. Exprected: PollOption
+    /// * `pollobject` - Title of the poll
+    /// * `polloptionobject` - Title of the poll-option
+    #[derive(Serialize)]
+    pub struct PollOption {
+        pub r#type: Types,
+        pub pollobject: String,
+        pub polloptionobject: String,
+    }
+
+    // Message skeleton to send a vote
+    /// # Parameters
+    /// * `type` - Message type. Exprected: PollOption
+    /// * `pollobject` - Title of the poll
+    /// * `polloptionobject` - Title of the poll-option
+    /// * `username` - Name of the voting-user (or "" if the receiver is not elevated)
+    /// * `userid` - ID of the voting-user (or 0 if the receiver is not elevated)
+    #[derive(Serialize)]
+    pub struct Vote {
+        pub r#type: Types,
+        pub pollobject: String,
+        pub polloptionobject: String,
+        pub username: String,
+        pub userid: usize,
+    }
+
+    // Message skeleton to close a poll
+    /// # Parameters
+    /// * `type` - Message type. Exprected: Poll
+    /// * `object` - Title of the poll
+    #[derive(Serialize)]
+    pub struct PollClose {
+        pub r#type: Types,
+        pub object: String,
     }
 }

@@ -373,17 +373,18 @@ impl Handler<Disconnect> for WebSocketServer {
                                 room.polls[i].votes.remove(&id);
 
                                 // send poll option message to clients
-                                let elevated_txt = json!({
-                                    "type": "deletevote",
-                                    "pollobject": poll.title,
-                                    "polloptionobject": poll_option_title,
-                                    "userid": user_id,
+                                let elevated_txt = json!(messages::outbound::VoteDelete {
+                                    r#type: messages::outbound::Types::VoteDelete,
+                                    pollobject: poll.title.clone(),
+                                    polloptionobject: poll_option_title.clone(),
+                                    userid: user_id,
                                 })
                                 .to_string();
-                                let not_elevated_txt = json!({
-                                    "type": "deletevote",
-                                    "pollobject": poll.title,
-                                    "polloptionobject": poll_option_title,
+                                let not_elevated_txt = json!(messages::outbound::VoteDelete {
+                                    r#type: messages::outbound::Types::VoteDelete,
+                                    pollobject: poll.title.clone(),
+                                    polloptionobject: poll_option_title.clone(),
+                                    userid: 0,
                                 })
                                 .to_string();
 
@@ -494,19 +495,19 @@ impl Handler<Join> for WebSocketServer {
         // send polls
         for poll in room.polls.clone() {
             if !poll.closed {
-                let poll_txt = json!({
-                    "type": "poll",
-                    "pollobject": poll.title,
+                let poll_txt = json!(messages::outbound::Poll {
+                    r#type: messages::outbound::Types::Poll,
+                    object: poll.title.clone(),
                 })
                 .to_string();
                 self.send_message_user(&room_name, &poll_txt, user_id);
 
                 // send options for poll
                 for option in poll.options.clone() {
-                    let option_txt = json!({
-                        "type": "polloption",
-                        "pollobject": poll.title,
-                        "polloptionobject": option.title,
+                    let option_txt = json!(messages::outbound::PollOption {
+                        r#type: messages::outbound::Types::PollOption,
+                        pollobject: poll.title.clone(),
+                        polloptionobject: option.title.clone(),
                     })
                     .to_string();
                     self.send_message_user(&room_name, &option_txt, user_id);
@@ -514,10 +515,12 @@ impl Handler<Join> for WebSocketServer {
 
                 // send votes for poll
                 for (_, option_title) in poll.votes.clone() {
-                    let vote_txt = json!({
-                        "type": "vote",
-                        "pollobject": poll.title,
-                        "polloptionobject": option_title,
+                    let vote_txt = json!(messages::outbound::Vote {
+                        r#type: messages::outbound::Types::Vote,
+                        pollobject: poll.title.clone(),
+                        polloptionobject: option_title.clone(),
+                        username: "".to_string(),
+                        userid: 0,
                     })
                     .to_string();
                     self.send_message_user(&room_name, &vote_txt, user_id);
@@ -676,12 +679,12 @@ impl Handler<Poll> for WebSocketServer {
         room.polls.push(poll);
 
         // send poll message to clients
-        let txt = json!({
-            "type": "poll",
-            "pollobject": poll_title,
+        let poll_txt = json!(messages::outbound::Poll {
+            r#type: messages::outbound::Types::Poll,
+            object: poll_title.clone(),
         })
         .to_string();
-        self.send_message_all(&room_name, &txt);
+        self.send_message_all(&room_name, &poll_txt);
     }
 }
 
@@ -746,10 +749,10 @@ impl Handler<PollOption> for WebSocketServer {
         poll.options.push(poll_option);
 
         // send poll option message to clients
-        let txt = json!({
-            "type": "polloption",
-            "pollobject": poll.title,
-            "polloptionobject": poll_option_title,
+        let txt = json!(messages::outbound::PollOption {
+            r#type: messages::outbound::Types::PollOption,
+            pollobject: poll.title.clone(),
+            polloptionobject: poll_option_title.clone(),
         })
         .to_string();
         self.send_message_all(&room_name, &txt);
@@ -828,18 +831,18 @@ impl Handler<PollVoteHelper> for WebSocketServer {
 
         // inform other users if one vote has to be removed
         if remove_vote {
-            let elevated_txt = json!({
-                "type": "deletevote",
-                "pollobject": poll_title,
-                "polloptionobject": remove_vote_option_title,
-                "userid": &vote.owner_id,
+            let elevated_txt = json!(messages::outbound::VoteDelete {
+                r#type: messages::outbound::Types::VoteDelete,
+                pollobject: poll_title.clone(),
+                polloptionobject: remove_vote_option_title.clone(),
+                userid: vote.owner_id,
             })
             .to_string();
-
-            let not_elevated_txt = json!({
-                "type": "deletevote",
-                "pollobject": poll_title,
-                "polloptionobject": remove_vote_option_title,
+            let not_elevated_txt = json!(messages::outbound::VoteDelete {
+                r#type: messages::outbound::Types::VoteDelete,
+                pollobject: poll_title.clone(),
+                polloptionobject: remove_vote_option_title.clone(),
+                userid: 0,
             })
             .to_string();
 
@@ -848,19 +851,20 @@ impl Handler<PollVoteHelper> for WebSocketServer {
         }
 
         // send poll option message to clients
-        let elevated_txt = json!({
-            "type": "vote",
-            "pollobject": poll_title,
-            "polloptionobject": poll_option_title,
-            "username": vote.owner_name,
-            "userid": vote.owner_id,
+        let elevated_txt = json!(messages::outbound::Vote {
+            r#type: messages::outbound::Types::Vote,
+            pollobject: poll_title.clone(),
+            polloptionobject: poll_option_title.clone(),
+            username: vote.owner_name.clone(),
+            userid: vote.owner_id,
         })
         .to_string();
-
-        let not_elevated_txt = json!({
-            "type": "vote",
-            "pollobject": poll_title,
-            "polloptionobject": poll_option_title,
+        let not_elevated_txt = json!(messages::outbound::Vote {
+            r#type: messages::outbound::Types::Vote,
+            pollobject: poll_title.clone(),
+            polloptionobject: poll_option_title.clone(),
+            username: "".to_string(),
+            userid: 0,
         })
         .to_string();
 
@@ -905,9 +909,9 @@ impl Handler<PollCloseHelper> for WebSocketServer {
         poll.closed = true;
 
         // send poll option message to clients
-        let txt = json!({
-            "type": "closepoll",
-            "pollobject": poll.title,
+        let txt = json!(messages::outbound::PollClose {
+            r#type: messages::outbound::Types::PollClose,
+            object: poll.title.clone(),
         })
         .to_string();
         self.send_message_all(&close.room_name, &txt);
@@ -942,35 +946,40 @@ impl WebSocketServer {
                             let user = room_imut.connected.get(&userid).unwrap();
 
                             if elevated {
-                                let del_vote_txt = json!({
-                                    "type": "deletevote",
-                                    "pollobject": poll.title,
-                                    "polloptionobject": option_title,
+                                let del_vote_txt = json!(messages::outbound::VoteDelete {
+                                    r#type: messages::outbound::Types::VoteDelete,
+                                    pollobject: poll.title.clone(),
+                                    polloptionobject: option_title.clone(),
+                                    userid: 0,
                                 })
                                 .to_string();
                                 self.send_message_user(&room_name, &del_vote_txt, user_id);
-                                let vote_txt = json!({
-                                    "type": "vote",
-                                    "pollobject": poll.title,
-                                    "polloptionobject": option_title,
-                                    "username": user.name,
-                                    "userid": userid,
+
+                                let vote_txt = json!(messages::outbound::Vote {
+                                    r#type: messages::outbound::Types::Vote,
+                                    pollobject: poll.title.clone(),
+                                    polloptionobject: option_title.clone(),
+                                    username: user.name.clone(),
+                                    userid: userid,
                                 })
                                 .to_string();
                                 self.send_message_user(&room_name, &vote_txt, user_id);
                             } else {
-                                let del_vote_txt = json!({
-                                    "type": "deletevote",
-                                    "pollobject": poll.title,
-                                    "polloptionobject": option_title,
-                                    "userid": userid,
+                                let del_vote_txt = json!(messages::outbound::VoteDelete {
+                                    r#type: messages::outbound::Types::VoteDelete,
+                                    pollobject: poll.title.clone(),
+                                    polloptionobject: option_title.clone(),
+                                    userid: userid,
                                 })
                                 .to_string();
                                 self.send_message_user(&room_name, &del_vote_txt, user_id);
-                                let vote_txt = json!({
-                                    "type": "vote",
-                                    "pollobject": poll.title,
-                                    "polloptionobject": option_title,
+
+                                let vote_txt = json!(messages::outbound::Vote {
+                                    r#type: messages::outbound::Types::Vote,
+                                    pollobject: poll.title.clone(),
+                                    polloptionobject: option_title.clone(),
+                                    username: "".to_string(),
+                                    userid: 0,
                                 })
                                 .to_string();
                                 self.send_message_user(&room_name, &vote_txt, user_id);
