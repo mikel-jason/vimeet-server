@@ -977,6 +977,23 @@ impl Handler<PollCloseHelper> for WebSocketServer {
             .entry(close.room_name.clone())
             .or_insert(Room::default());
 
+        // check if user is elevated
+        let mut user_is_elevated = room.connected.clone();
+        user_is_elevated.retain(|id, user| {
+            id == &close.sender_id && &user.name == &close.sender_name && user.elevated
+        });
+
+        if user_is_elevated.len() == 0 {
+            self.send_error_user(
+                &close.room_name,
+                "no_permission",
+                "You do not have permission to close polls (because you're not elevated)",
+                close.sender_id,
+            );
+            println!("User does not have permission to close polls (not elevated)");
+            return;
+        }
+
         // check if poll exists
         let mut poll_exists = room.polls.clone();
         poll_exists.retain(|elem| &elem.title == &close.poll_title);
