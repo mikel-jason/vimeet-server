@@ -49,6 +49,11 @@ pub struct ClientMessage {
     pub room: String,
 }
 
+/// The room object
+/// # Parameters
+/// * `raised` - A list of all raised objects in this room
+/// * `polls` - A list of all poll objects in this room
+/// * `connected` - A HashMap with all users in this room: <userid: usize, user: User>
 #[derive(Clone)]
 pub struct Room {
     raised: Vec<Raised>,
@@ -56,6 +61,10 @@ pub struct Room {
     connected: HashMap<usize, User>,
 }
 
+/// The user object
+/// # Parameters
+/// * `name` - The name of the user
+/// * `elevated` - Bool: if the user is elevated
 #[derive(Clone, Serialize)]
 pub struct User {
     name: String,
@@ -73,10 +82,18 @@ impl Default for Room {
 }
 
 impl Room {
+    /// remove a user from a room
+    ///
+    /// # Arguments
+    /// * `user_id` - the id of the user that should be removed
     fn remove_user(&mut self, user_id: &usize) {
         self.raised.retain(|elem| &elem.owner_id != user_id);
     }
 
+    /// returns a Result with the information if an user is elevated or not
+    ///
+    /// # Arguments
+    /// * `user_id` - the id of the user you want the elevated information from
     fn is_elevated(&self, user_id: &usize) -> Result<bool, &'static str> {
         match self.connected.get(user_id) {
             None => Err(""),
@@ -84,6 +101,11 @@ impl Room {
         }
     }
 
+    /// set the elevated state of an user
+    ///
+    /// # Arguments
+    /// * `user_id` - the id of the user you want to set the elevated state
+    /// * `elevated` - the elevated state (true / false)
     fn set_elevated(&mut self, user_id: &usize, elevated: bool) {
         match self.connected.get_mut(user_id) {
             None => {
@@ -94,6 +116,13 @@ impl Room {
     }
 }
 
+/// A helper object to close a poll
+///
+/// # Parameters
+/// * `sender_id` - the id of the user who sends the message
+/// * `sender_name` - the name of the user who sends the message
+/// * `room_name` - the name of the room in which the user sends the message
+/// * `poll_title` - the name of the poll the user wants to close
 #[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
 pub struct PollCloseHelper {
@@ -103,6 +132,14 @@ pub struct PollCloseHelper {
     pub poll_title: String,
 }
 
+/// A helper object to vote on a poll (-option)
+///
+/// # Parameters
+/// * `owner_id` - the id of the user who sends the message
+/// * `owner_name` - the name of the user who sends the message
+/// * `room_name` - the name of the room in which the user sends the message
+/// * `poll_title` - the name of the poll the user wants to vote on
+/// * `option_title` - the name of the option the user wants to vote on
 #[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
 pub struct PollVoteHelper {
@@ -113,6 +150,14 @@ pub struct PollVoteHelper {
     pub option_title: String,
 }
 
+/// The poll option object
+///
+/// # Parameters
+/// * `title` - the title of the poll option
+/// * `owner_id` - the id of the user that created this option
+/// * `owner_name` - the name of the user that created this option
+/// * `room_name` - the name of the room in which this option (and the poll) was created
+/// * `poll_title` - the name of the poll this option belongs to
 #[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
 pub struct PollOption {
@@ -123,6 +168,15 @@ pub struct PollOption {
     pub poll_title: String,
 }
 
+/// The poll option object
+///
+/// # Parameters
+/// * `title` - the title of the poll
+/// * `owner_id` - the id of the user that created this poll
+/// * `owner_name` - the name of the user that created this poll
+/// * `room_name` - the name of the room in which this poll was created
+/// * `options` - a list of PollOptions
+/// * `votes` - a HashMap of votes: <userid: usize, option_title: String>
 #[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
 pub struct Poll {
@@ -131,7 +185,7 @@ pub struct Poll {
     pub owner_name: String,
     pub room_name: String,
     pub options: Vec<PollOption>,
-    pub votes: HashMap<usize, String>, // HashMap<user_id, option_title>
+    pub votes: HashMap<usize, String>,
     pub closed: bool,
 }
 
@@ -212,7 +266,6 @@ impl WebSocketServer {
     /// expect of the user given in the argument `skip_id`
     ///
     /// # Arguments
-    ///
     /// * `room` - a string slice with the name of the room where the message has to be send
     /// * `message` - a string slice that holds the message to be send
     /// * `skip_id` - the user id of the user that should not receive the message
@@ -236,7 +289,6 @@ impl WebSocketServer {
     /// This function uses `the send_message_skip_user()-function` with the `skip_user-argument` 0.
     ///
     /// # Arguments
-    ///
     /// * `room` - a string slice with the name of the room where the message has to be send
     /// * `message` - a string slice that holds the message to be send
     fn send_message_all(&mut self, room: &str, message: &str) {
@@ -246,7 +298,6 @@ impl WebSocketServer {
     /// send a message to a specific users in a room
     ///
     /// # Arguments
-    ///
     /// * `room` - a string slice with the name of the room where the message has to be send
     /// * `message` - a string slice that holds the message to be send
     /// * `user_id` - the user id of the user that should receive the message
@@ -271,7 +322,6 @@ impl WebSocketServer {
     /// This function loops threw all users in the given room and sends the given message to every user that has `elevated` set to `true`.
     ///
     /// # Arguments
-    ///
     /// * `room` - a string slice with the name of the room where the message has to be send
     /// * `message` - a string slice that holds the message to be send
     fn send_message_all_elevated(&self, room: &str, message: &str) {
@@ -294,7 +344,6 @@ impl WebSocketServer {
     /// This function loops threw all users in the given room and sends the given message to every user that has `elevated` set to `false`.
     ///
     /// # Arguments
-    ///
     /// * `room` - a string slice with the name of the room where the message has to be send
     /// * `message` - a string slice that holds the message to be send
     fn send_message_all_not_elevated(&self, room: &str, message: &str) {
@@ -317,7 +366,6 @@ impl WebSocketServer {
     /// This function loops threw all users in the given room and sends the given message to every user that has `elevated` set to `false`.
     ///
     /// # Arguments
-    ///
     /// * `room` - a string slice with the name of the room where the message has to be send
     /// * `error_code` - a string slice with a short error name
     /// * `error_description` - a string slice with a longer description what went wrong
@@ -679,6 +727,7 @@ impl Handler<Instant> for WebSocketServer {
     }
 }
 
+/// Handler for creating polls
 impl Handler<Poll> for WebSocketServer {
     type Result = ();
 
@@ -738,6 +787,7 @@ impl Handler<Poll> for WebSocketServer {
     }
 }
 
+/// Handler for creating poll options
 impl Handler<PollOption> for WebSocketServer {
     type Result = ();
 
@@ -834,6 +884,7 @@ impl Handler<PollOption> for WebSocketServer {
     }
 }
 
+/// Handler for voting
 impl Handler<PollVoteHelper> for WebSocketServer {
     type Result = ();
 
@@ -967,6 +1018,7 @@ impl Handler<PollVoteHelper> for WebSocketServer {
     }
 }
 
+/// Handler for closing polls
 impl Handler<PollCloseHelper> for WebSocketServer {
     type Result = ();
 
